@@ -1,0 +1,87 @@
+# Cursor Rules for Nuxt Template
+
+## Project Overview
+
+This is a **Nuxt Minimal Starter** — a minimal Nuxt 4 template for building Vue 3 applications.
+
+- **Stack:** Nuxt 4, Vue 3, Vue Router
+- **Purpose:** Base template for new Nuxt projects; add pages, components, and config as needed.
+- **Dev server:** `pnpm dev` (or npm/yarn/bun) → http://localhost:3000
+- **Scripts:** `dev`, `build`, `generate`, `preview`; `postinstall` runs `nuxt prepare`
+- **Config:** `nuxt.config.ts` (compatibility date 2025-07-15, devtools enabled)
+- **Layout:** App entry under `app/`, static assets in `public/`
+
+
+### General Rules
+
+- **Always use TypeScript** and type hints for function parameters, return types, and variables (avoid `any`; use explicit types or inferred types where clear).
+- **Use modern TypeScript/ES syntax** (e.g. optional chaining `?.`, nullish coalescing `??`, `satisfies`, `as const`, and type-only imports where appropriate).
+- **Line length:** 100 characters (Prettier default; keep lines readable).
+- **Import sorting:** Use a consistent order (e.g. ESLint import order: built-in → external → internal/aliases → relative; types grouped or with type-only imports).
+- **Formatting:** Prettier for code formatting; ESLint for linting (Nuxt ESLint config as base).
+- **Type checking:** Rely on Nuxt/Vue type generation and strict TypeScript; fix type errors rather than weakening types.
+
+### Docstrings (JSDoc)
+
+- **Always include JSDoc comments** for all exported functions, composables, classes, and non-trivial utilities.
+- Use JSDoc with `@param` and `@returns` (and `@example` when helpful); include types in tags so IDEs and TypeScript can use them.
+- Add a brief description first; longer explanation below when needed.
+- Example:
+
+  ```ts
+  /**
+   * Brief description.
+   *
+   * Longer description if needed.
+   *
+   * @param param1 - Description of param1
+   * @param param2 - Description of param2
+   * @returns Description of return value
+   *
+   * @example
+   * const result = myFunction('a', 1)
+   */
+  function myFunction(param1: string, param2: number): ResultType {
+    // ...
+  }
+  ```
+
+## Architecture Patterns
+
+### Project Structure
+Each project follows a layered architecture pattern:
+
+```
+projects/{project_name}/
+├── assets/              # Static assets
+    ├── fonts/              # Fonts
+    ├── icons/              # Images
+    ├── images/             # Images
+    ├── styles/             # Styles
+├── components/            # Components
+├── composables/
+    ├── app/{app_name}  
+        |   ├── auth.ts    # Authentication composable
+        |   ├── user.ts    # User composable
+        |   ├── role.ts    # Role composable
+├── middleware/              # Middleware
+├── layouts/             # Shared layouts
+├── pages/               # Pages
+├── public/              # Public assets
+├── services/            # Services
+├── stores/              # Stores
+├── types/               # Types
+└── utils/               # Utility functions
+```
+- **Projects**: Each project goes in `projects/{project_name}/`
+- **Assets**: Static assets in `projects/{project_name}/assets/`
+- **Components**: Components in `projects/{project_name}/components/`
+- **Composables**: Composables in `projects/{project_name}/composables/`
+- **Middleware**: Middleware in `projects/{project_name}/middleware/`
+- **Layouts**: Shared layouts in `projects/{project_name}/layouts/`
+- **Pages**: Pages in `projects/{project_name}/pages/`
+- **Public**: Public assets in `projects/{project_name}/public/`
+- **Services**: Services in `projects/{project_name}/services/`
+- **Stores**: Stores in `projects/{project_name}/stores/`
+- **Types**: Types in `projects/{project_name}/types/`
+- **Utils**: Utility functions in `projects/{project_name}/utils/`
