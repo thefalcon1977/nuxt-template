@@ -1,0 +1,191 @@
+---
+description: Rules and conventions for Nuxt page components
+globs: app/pages/**/*
+alwaysApply: false
+---
+
+# Pages
+
+Rules for files under `app/pages/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## File-Based Routing
+
+Use Nuxt file-based routing. Map URLs to the filesystem:
+
+| Pattern | Route example | Purpose |
+|---------|---------------|---------|
+| `index.vue` | `/` | Root redirect or landing page |
+| `feature.vue` | `/feature/*` | Parent wrapper for nested routes |
+| `feature/index.vue` | `/feature` | List or main view for a section |
+| `feature/create/index.vue` | `/feature/create` | Create form |
+| `feature/edit/[id].vue` | `/feature/edit/:id` | Edit/detail by dynamic param |
+| `feature/details/[id].vue` | `/feature/details/:id` | Detail view |
+| `feature/details/sub/[id].vue` | `/feature/details/sub/:id` | Deeply nested detail views |
+
+- Use **kebab-case** for multi-word route folders (e.g. `voice-record-file/`).
+- Use **dynamic segments** in brackets: `[uuid].vue`, `[imei].vue`, `[id].vue`.
+- Prefer `index.vue` for default child routes instead of duplicating route names.
+
+## Parent Route Wrappers
+
+For route sections with children, add a sibling `feature.vue` that renders the layout shell and `<NuxtPage />`.
+
+```vue
+<template>
+  <NuxtLayout name="main-content">
+    <NuxtPage />
+  </NuxtLayout>
+</template>
+
+<script setup lang="ts">
+definePageMeta({
+  layout: 'default',
+  middleware: ['user-only'],
+})
+</script>
+
+<style scoped></style>
+```
+
+- Keep parent wrappers **thin**: layout, middleware, and optional dynamic layout selection only.
+- Put page UI in child files (`feature/index.vue`, `feature/edit/[id].vue`), not in the wrapper.
+- Use a computed layout when sub-routes need a different layout (e.g. detail sections vs list).
+
+```vue
+<script setup lang="ts">
+const route = useRoute()
+
+const currentLayout = computed(() =>
+  route.path.startsWith('/devices/details') ? 'device-details' : 'main-content',
+)
+</script>
+```
+
+## Root Index
+
+Use the root page for redirects when the app has a default authenticated area:
+
+```vue
+<template><div /></template>
+
+<script setup lang="ts">
+const router = useRouter()
+
+onMounted(() => {
+  router.replace('/dashboard')
+})
+</script>
+```
+
+## Leaf Page Structure
+
+Every leaf page follows this block order:
+
+```vue
+<template>
+  <!-- page markup -->
+</template>
+
+<script setup lang="ts">
+// imports → route/router → state → composables → handlers → lifecycle → watchers
+</script>
+
+<style scoped></style>
+```
+
+### Script setup order
+
+1. **Imports** — Vue APIs, composables, components, types (type-only imports for DTOs).
+2. **Router / route** — `useRouter()`, `useRoute()`, read `route.params` for dynamic IDs.
+3. **Local state** — `ref()` for scalars/lists; `reactive()` for form objects.
+4. **Data layer** — query/mutation composables from `~/composables/**` or `~/services/**`.
+5. **Handlers** — fetch/sync, navigation, validation, submit, delete.
+6. **Lifecycle** — `onMounted()` for initial fetch.
+7. **Watchers** — `watch()` on query data and pagination refs to refetch/sync UI.
+
+## Page Meta
+
+Set layout and middleware on the route segment that owns access control:
+
+```ts
+definePageMeta({
+  layout: 'default',
+  middleware: ['user-only'], // authenticated routes
+})
+
+definePageMeta({
+  middleware: ['guest-only'], // auth/login routes
+})
+```
+
+- **Auth parent** (`auth.vue`): use `auth-layout` and `<NuxtPage />`; no middleware on the wrapper unless shared.
+- **Protected sections**: apply `user-only` on the parent wrapper so all children inherit it.
+
+## Data Fetching
+
+- **Do not** call REST services directly in pages when a composable exists.
+- Use composables from `~/composables/{domain}/` (e.g. `useGetAgentList`, `useCreateAgent`, `useGetDeviceByIMEI`).
+- Sync composable results into local state in a dedicated fetch function:
+
+```ts
+const agents = ref<Agent[]>([])
+const { data: agentsData, isLoading, refetch } = useGetAgentList(currentPage, currentPageSize, true)
+
+const fetchAgents = (): void => {
+  if (!agentsData.value) return
+  agents.value = agentsData.value?.data?.data ?? []
+  totalPages.value = agentsData.value?.data?.extra.AllPage ?? 0
+}
+
+onMounted(fetchAgents)
+watch([agentsData, currentPage], fetchAgents)
+```
+
+- Pass **refs** for pagination (`currentPage`, `currentPageSize`) so composables react to page changes.
+- For dynamic routes, pass `route.params.id` (or a ref derived from it) into query composables.
+
+## List Pages
+
+List/index pages should include:
+
+- Loading indicator bound to composable `isLoading` / `isPending`.
+- **Empty state** when count is zero (`v-if` / `v-else` with a no-data message or image).
+- **Pagination** when `totalPages > 1` (`v-model` on current page, handler updates ref).
+- Row actions (edit, copy, navigate) as named functions, not inline complex logic.
+- Table/card height via refs (e.g. `cardTableHeight = ref('73vh')`) when using fixed layouts.
+
+## Form Pages (Create / Edit)
+
+- Use `reactive()` for form fields and a separate `reactive()` or ref map for field errors.
+- Validate before submit; set per-field error messages and return early on failure.
+- On success, navigate back to the list (`router.push('/feature')`).
+- On edit pages, read ID from `route.params`, fetch on mount, and `Object.assign(form, fetchedData)`.
+- Destructive actions (delete): confirm in a dialog/modal and verify the identifier before calling mutation composables.
+
+## Detail & Nested Detail Pages
+
+- Read the resource ID once: `const resourceId = ref(route.params.imei as string)`.
+- Initialize reactive view models with safe defaults before fetch completes.
+- Map API response fields explicitly in the fetch function (avoid spreading unknown shapes blindly).
+- Extract large dialogs, result panels, and repeated sub-views into `~/components/**`.
+- Deep routes under `details/` share the same dynamic param across siblings (e.g. `[imei].vue` in each subfolder).
+
+## Navigation
+
+- Use `useRouter().push()` for imperative navigation after actions.
+- Prefer route paths consistent with the filesystem (`/agents/edit/${uuid}`, `/agents/create/`).
+- Use relative paths only when navigating within the same dynamic segment (`edit/${id}`).
+
+## Template Conventions
+
+- Wrap page content in a top-level container (`v-container`, layout component, or semantic wrapper).
+- Use `v-card` / project UI primitives for grouped content (title → divider → body → actions).
+- Show loading on cards or linear progress while queries are pending.
+- Use i18n keys for user-facing labels where applicable (`$vuetify.locale.t(...)` or project i18n).
+- Keep templates declarative; move formatting helpers to `~/utils/**` (e.g. date formatting, platform icons).
+
+## What Not to Put in Pages
+
+- Business logic that belongs in composables, services, or stores.
+- Large presentational blocks — extract to components (e.g. modals, result panels, data tables).
+- Duplicate fetch/sync logic — share via composables or small page-local helpers when repeated across sibling routes.

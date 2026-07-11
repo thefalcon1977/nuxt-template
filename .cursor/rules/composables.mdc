@@ -1,0 +1,280 @@
+---
+description: Rules and conventions for Nuxt composables
+globs: app/composables/**/*
+alwaysApply: false
+---
+
+# Composables
+
+Rules for files under `app/composables/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Composables wrap **reusable reactive logic**: data fetching, mutations, notifications, and shared UI behavior. Pages and components consume composables; they do not call REST services directly when a composable exists.
+
+## Directory Structure
+
+Organize by domain/service, mirroring the API layer:
+
+```
+app/composables/
+├── useNotify.ts                          # App-wide utilities
+├── StoreService/
+│   ├── agents/
+│   │   ├── useAgentQuery.ts              # Read operations
+│   │   └── useAgentMutation.ts           # Write operations
+│   ├── devices/
+│   │   ├── useDeviceQuery.ts
+│   │   └── useDeviceMutation.ts
+│   ├── commands/
+│   │   ├── useCommandQuery.ts
+│   │   └── useCommandMutation.ts
+│   └── fileSources/
+│       └── camera/
+│           └── useCameraQuery.ts
+└── werehouseService/
+    └── jsonData/
+        └── useJsonDataQuery.ts
+```
+
+- **Split queries and mutations** into separate files per domain (`use*Query.ts`, `use*Mutation.ts`).
+- Group under `{serviceName}/{resource}/` (e.g. `StoreService/agents/`).
+- Root-level composables (`useNotify.ts`) are for cross-cutting app utilities only.
+
+## Naming
+
+| Kind | File pattern | Export pattern |
+|------|--------------|----------------|
+| List/detail fetch | `useAgentQuery.ts` | `useGetAgentList`, `useGetAgentByUUID` |
+| Create/update/delete | `useAgentMutation.ts` | `useCreateAgent`, `useUpdateAgent`, `useDeleteAgent` |
+| App utility | `useNotify.ts` | `useNotify` |
+
+- Prefix all exports with **`use`**.
+- Use **PascalCase** resource segments in function names (`useGetDeviceByIMEI`).
+- Query keys: kebab-case strings (`'get-agents'`, `'get-device'`).
+
+## Data Fetching (Queries)
+
+Use **TanStack Vue Query** (`useQuery` from `@tanstack/vue-query`).
+
+### Simple query (pagination refs)
+
+```ts
+import { computed } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
+import { getAgent } from '~/services/REST_SERVICES/queries/store/agent'
+import type { Ref } from 'vue'
+
+/**
+ * Fetches a paginated agent list.
+ *
+ * @param page - Current page ref
+ * @param pageSize - Page size ref
+ * @param enabled - Whether the query is active
+ * @returns TanStack query result
+ */
+export const useGetAgentList = (
+  page: Ref<number>,
+  pageSize: Ref<number>,
+  enabled = false,
+) => {
+  const queryKey = computed(() => ['get-agents', page.value, pageSize.value])
+
+  return useQuery({
+    queryKey,
+    queryFn: () => getAgent(page.value, pageSize.value),
+    enabled,
+  })
+}
+```
+
+### Options-object query (preferred for multiple params)
+
+Accept `Ref<T> | T` for each input and unwrap inside `queryKey` / `queryFn`:
+
+```ts
+interface JsonDataOptions {
+  page: Ref<number> | number
+  pageSize: Ref<number> | number
+  deviceImei: Ref<string> | string
+  commandContent: Ref<string> | string
+  enabled?: boolean
+}
+
+function unwrap<T>(value: Ref<T> | T): T {
+  return unref(value)
+}
+
+export const useGetJsonData = ({
+  page,
+  pageSize,
+  deviceImei,
+  commandContent,
+  enabled = false,
+}: JsonDataOptions) => {
+  const queryKey = computed(() => [
+    'get-json-data',
+    unwrap(page),
+    unwrap(pageSize),
+    unwrap(deviceImei),
+    unwrap(commandContent),
+  ])
+
+  return useQuery({
+    queryKey,
+    queryFn: () =>
+      getJsonDataList(
+        unwrap(page),
+        unwrap(pageSize),
+        unwrap(deviceImei),
+        unwrap(commandContent),
+      ),
+    enabled,
+  })
+}
+```
+
+### Query rules
+
+- Build **`queryKey`** with `computed()` so it updates when refs change.
+- Include **all reactive inputs** in the query key (page, filters, IDs).
+- **`queryFn`** delegates to `~/services/REST_SERVICES/queries/**` — no inline `fetch`.
+- Expose an **`enabled`** flag (default `false` or driven by caller) to defer fetching.
+- Derive/filter params in `computed` when needed (e.g. join array filters before the key).
+- Return the `useQuery()` result directly (`data`, `isLoading` / `isPending`, `refetch`, etc.).
+
+## Mutations
+
+Use **`useMutation`** from `@tanstack/vue-query` in `use*Mutation.ts` files.
+
+```ts
+import { useMutation } from '@tanstack/vue-query'
+import { useNotify } from '~/composables/useNotify'
+import { createAgent } from '~/services/REST_SERVICES/mutations/store/agents'
+import type { AgentCreatePayload } from '~/services/REST_SERVICES/dto/mutation/store/agent'
+
+/**
+ * Creates a new agent and navigates to the list on success.
+ *
+ * @returns TanStack mutation result
+ */
+export const useCreateAgent = () => {
+  const router = useRouter()
+  const notify = useNotify()
+
+  return useMutation({
+    mutationKey: ['agent', 'create'],
+    mutationFn: ({ agentData }: { agentData: AgentCreatePayload }) =>
+      createAgent(agentData),
+    onSuccess: () => {
+      notify({ text: 'Agent created successfully', type: 'success' })
+      router.push('/agents')
+    },
+    onError: (error) => {
+      console.error('Error creating new agent:', error)
+      notify({ text: 'Error creating new agent.', type: 'error' })
+    },
+  })
+}
+```
+
+### Mutation rules
+
+- **`mutationFn`** calls `~/services/REST_SERVICES/mutations/**` only.
+- Use typed payload objects (`{ uuid, agentData }`, `{ imei, deviceData }`) — avoid `any`.
+- **`onSuccess`**: user feedback via `useNotify()`; navigate with `useRouter()` when appropriate.
+- **`onError`**: log with `console.error` and show an error notification.
+- Use distinct **`mutationKey`** values per operation (`['agent', 'create']`, `['device', 'delete-info']`).
+- Variants that differ only by navigation (e.g. `useCreateCommand(pushToRoute)`) accept a parameter rather than duplicating service calls.
+
+## App Utilities
+
+Cross-cutting composables live at the composables root:
+
+```ts
+type NotificationType = 'success' | 'error' | 'warn' | 'info'
+
+interface NotifyOptions {
+  title?: string
+  text: string
+  type?: NotificationType
+  duration?: number
+}
+
+/**
+ * Returns a function that displays app notifications.
+ *
+ * @returns Notification dispatcher
+ */
+export function useNotify() {
+  return (options: NotifyOptions) => {
+    notify({
+      title: options.title ?? defaultTitle(options.type),
+      text: options.text,
+      type: options.type ?? 'info',
+      duration: options.duration ?? 3000,
+    })
+  }
+}
+```
+
+- Define **interfaces/types** for options and payloads.
+- Return functions or reactive state — keep side effects inside the composable.
+
+## TypeScript
+
+- Type all parameters and return values; replace legacy `any` with domain DTOs from `~/services/**/dto/**`.
+- Prefer **`Ref<T> | T`** unions for query inputs that accept refs or plain values.
+- Use **type-only imports** for DTOs and interfaces.
+- Add **JSDoc** to every exported composable (`@param`, `@returns`).
+
+## Dependencies
+
+| Layer | Allowed in composables |
+|-------|------------------------|
+| `~/services/REST_SERVICES/queries/**` | Yes — in query composables |
+| `~/services/REST_SERVICES/mutations/**` | Yes — in mutation composables |
+| `@tanstack/vue-query` | Yes |
+| `~/composables/useNotify` | Yes — in mutations/utilities |
+| `useRouter()` | Yes — navigation after mutations |
+| Vue APIs (`ref`, `computed`, `unref`) | Yes |
+| Pinia stores | Sparingly — prefer services; stores for auth/loading when needed |
+| Components / page markup | No |
+
+## Consumption in Pages
+
+Pages call composables and sync results into local state — they do not reimplement fetch logic:
+
+```ts
+const currentPage = ref(1)
+const currentPageSize = ref(50)
+
+const { data: agentsData, isLoading, refetch } = useGetAgentList(
+  currentPage,
+  currentPageSize,
+  true,
+)
+
+const fetchAgents = (): void => {
+  if (!agentsData.value) return
+  agents.value = agentsData.value?.data?.data ?? []
+}
+
+watch([agentsData, currentPage], fetchAgents)
+```
+
+## What Not to Put in Composables
+
+- Vue template markup or layout structure.
+- Route middleware or `definePageMeta`.
+- One-off logic used in a single page with no reuse potential.
+- Direct DOM manipulation unrelated to a reusable concern.
+
+## Adding a New Domain
+
+1. Create `app/composables/{Service}/{resource}/use{Resource}Query.ts`.
+2. Create `use{Resource}Mutation.ts` if the resource has write operations.
+3. Import query/mutation functions from the matching `~/services/REST_SERVICES/**` modules.
+4. Define options interfaces for queries with more than two parameters.
+5. Export named `useGet*` / `useCreate*` / `useUpdate*` / `useDelete*` functions with JSDoc.
+6. Use the composable from pages — never duplicate the query in the page.

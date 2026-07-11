@@ -1,0 +1,225 @@
+---
+description: Rules and conventions for Vue components
+globs: app/components/**/*
+alwaysApply: false
+---
+
+# Components
+
+Rules for files under `app/components/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Components are **reusable UI building blocks** extracted from pages when markup or behavior is shared across routes. Pages orchestrate data; components render and emit events.
+
+## Directory Structure
+
+```
+app/components/
+├── NoDataCard.vue              # Shared empty-state card
+├── ResultCommand.vue           # Shared result/export panel
+├── CreateCommandButton.vue     # Action button with encapsulated logic
+├── navbar.vue                  # App chrome (prefer layouts for shell UI)
+└── modals/
+    └── DeviceEdit.vue          # Dialog/modal components
+```
+
+- Place **modals and dialogs** under `modals/`.
+- Group related components in subfolders by feature when the set grows (e.g. `devices/`, `agents/`).
+- Prefer **PascalCase** filenames for multi-word components (`NoDataCard.vue`, `DeviceEdit.vue`).
+
+## Naming
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Presentational | PascalCase, noun-based | `NoDataCard.vue`, `ResultCommand.vue` |
+| Action/control | PascalCase, describes action | `CreateCommandButton.vue` |
+| Modals | PascalCase under `modals/` | `modals/DeviceEdit.vue` |
+
+- Nuxt auto-registers components; import explicitly when clarity helps:
+
+```ts
+import NoDataCard from '~/components/NoDataCard.vue'
+import DeviceEditDialog from '~/components/modals/DeviceEdit.vue'
+```
+
+## File Structure
+
+Every component follows this block order:
+
+```vue
+<template>
+  <!-- markup -->
+</template>
+
+<script setup lang="ts">
+// imports → props/emits → state → composables → handlers
+</script>
+
+<style scoped></style>
+```
+
+- Use a **single** `<script setup lang="ts">` block — no mixed Options API.
+- Add `scoped` styles only when the component needs local CSS.
+
+## Props and Emits
+
+Use typed `defineProps` and `defineEmits`. Provide defaults for optional props.
+
+```ts
+interface ResultCommandProps {
+  exportBtn?: boolean
+  isLoadingDataSingle?: boolean
+  queryStatus?: boolean
+  singleDataContent?: string
+}
+
+const props = withDefaults(defineProps<ResultCommandProps>(), {
+  exportBtn: false,
+  isLoadingDataSingle: false,
+  queryStatus: false,
+  singleDataContent: '',
+})
+```
+
+### v-model pattern (modals/dialogs)
+
+```ts
+interface DeviceEditProps {
+  isVisible: boolean
+  deviceDataRef: DeviceData
+  isPublished: boolean
+  isUpdatingPending: boolean
+}
+
+const props = defineProps<DeviceEditProps>()
+
+const emit = defineEmits<{
+  'update:isVisible': [value: boolean]
+  'update:isPublished': [value: boolean]
+  updateDevice: [payload: DeviceUpdatePayload]
+}>()
+```
+
+```vue
+<v-dialog :model-value="isVisible" @update:model-value="emit('update:isVisible', $event)">
+  <!-- dialog content -->
+</v-dialog>
+```
+
+- Use **`update:propName`** for two-way binding (`v-model:is-visible`).
+- Keep a local ref synced with props via `watch` when the child mutates display state.
+- Emit domain events (`updateDevice`) instead of mutating parent data directly.
+
+## Component Categories
+
+### Presentational components
+
+Display data passed via props; minimal logic.
+
+- Examples: `NoDataCard`, `ResultCommand`
+- Accept text/content/loading flags as props.
+- Use i18n for labels (`$vuetify.locale.t(...)` or project i18n).
+- Delegate formatting/export to `~/utils/**` (e.g. `jsonToCsv`, `downloadExcel`).
+
+```vue
+<template>
+  <v-card rounded="lg" class="elevation-2 pa-3">
+    <v-card-title class="d-flex justify-center">
+      <h4>{{ $vuetify.locale.t('component.noDataAvailable') }}</h4>
+    </v-card-title>
+    <v-card-text class="text-center">
+      <p>{{ promptText }}</p>
+    </v-card-text>
+  </v-card>
+</template>
+```
+
+### Action components
+
+Encapsulate user actions that call composables.
+
+- Examples: `CreateCommandButton`
+- Accept configuration props (`commandContent`, `tooltipText`).
+- Use mutation composables internally (`useCreateCommandByDeviceId`).
+- Confirm destructive/create actions with a dialog (e.g. SweetAlert) before mutating.
+- Expose loading via composable `isPending` on the button.
+
+### Modal components
+
+Overlay dialogs for edit/create flows.
+
+- Live under `modals/`.
+- Control visibility via `v-model:is-visible` from the parent page.
+- Receive entity data as props; emit save/update payloads to the parent.
+- Parent page or composable performs the actual API mutation.
+
+## Script Conventions
+
+1. **Imports** — Vue APIs, composables, utils, types, child components.
+2. **Props / emits** — typed interfaces with defaults.
+3. **Local state** — `ref` / `reactive` for UI-only state.
+4. **Composables** — mutations/queries when the component owns the action.
+5. **Handlers** — named functions for clicks, export, confirm, close.
+6. **Lifecycle / watchers** — sync props to local state when needed.
+
+```ts
+const localIsPublished = ref(props.isPublished)
+
+watch(
+  () => props.isPublished,
+  (newValue) => {
+    localIsPublished.value = newValue
+  },
+)
+```
+
+## Dependencies
+
+| Layer | Allowed in components |
+|-------|------------------------|
+| `~/composables/**` | Yes — for action components |
+| `~/utils/**` | Yes — formatting, export, helpers |
+| `~/components/**` | Yes — compose smaller components |
+| i18n / UI library | Yes |
+| `~/services/**` directly | Avoid — prefer composables |
+| Route middleware / `definePageMeta` | No |
+| Layout shells (`v-app`, nav drawers) | Prefer layouts, not components |
+
+## Composition
+
+- Compose smaller components inside larger ones (`NoDataCard` uses `CreateCommandButton`).
+- Pass **narrow props** (strings, booleans, IDs) rather than entire stores when possible.
+- Use slots when the parent must inject variable markup; use props when data is structured.
+
+## Template Conventions
+
+- Wrap grouped content in cards/panels consistent with the design system.
+- Show loading indicators (`v-progress-linear`) when `isLoading` props are true.
+- Use tooltips on icon/action buttons for accessibility.
+- Keep templates declarative; move JSON parsing, export, and validation to script or utils.
+
+## What Belongs in Components
+
+- Empty states reused across pages (`NoDataCard`).
+- Result panels, export toolbars, data viewers (`ResultCommand`).
+- Modals/dialogs (`DeviceEdit`).
+- Buttons/controls with repeated mutation + confirm flows.
+- Any UI block duplicated across 2+ pages.
+
+## What Not to Put in Components
+
+- Full page layouts (use `app/layouts/`).
+- Route definitions or middleware.
+- One-off markup used in a single page with no reuse.
+- Direct REST calls — wrap in composables first.
+- Mixed `<script setup>` and Options API in the same file.
+
+## Adding a New Component
+
+1. Identify duplicated UI or behavior across pages.
+2. Choose location: root `app/components/` or subfolder (`modals/`, `{feature}/`).
+3. Define typed props/emits interfaces.
+4. Keep data fetching in composables; pass results in as props or use action composables inside.
+5. Import in pages with `~/components/...` when explicit imports aid readability.
+6. Add JSDoc on non-trivial exported helpers used by the component.

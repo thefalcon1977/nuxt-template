@@ -1,0 +1,181 @@
+---
+description: Global rules and architecture for the Nuxt template
+alwaysApply: true
+---
+
+# Cursor Rules for Nuxt Template
+
+Master rules for this repository. Layer-specific details live in other files under `.cursor/rules/` — read those when editing matching paths.
+
+## Project Overview
+
+**Nuxt Minimal Starter** — a Nuxt 4 template for Vue 3 applications.
+
+| Item | Value |
+|------|-------|
+| Stack | Nuxt 4, Vue 3, Vue Router, TypeScript |
+| Package manager | **Yarn 1.22.22** (see `yarn.mdc`) |
+| Dev server | `yarn dev` → http://localhost:3000 |
+| Scripts | `dev`, `build`, `generate`, `preview`; `postinstall` → `nuxt prepare` |
+| Config | `nuxt.config.ts` (compatibility date 2025-07-15, devtools enabled) |
+| App root | `app/` (Nuxt 4 directory structure) |
+| Static files | `public/` (fixed URLs); processed assets in `app/assets/` |
+
+## Architecture
+
+Layered architecture — each layer has a single responsibility. Do not skip layers (e.g. pages calling REST services directly).
+
+```
+app/
+├── app.vue                 # Root shell
+├── app.config.ts           # App-level UI config
+├── assets/                 # Styles, fonts, images (processed)
+├── components/             # Reusable UI blocks
+├── composables/            # Reactive logic + Vue Query wrappers
+├── layouts/                # App shells (nav, sidebar, auth chrome)
+├── middleware/             # Route guards (auth, guest)
+├── pages/                  # File-based routes
+├── plugins/                # Bootstrap libs (axios, i18n, UI framework)
+├── services/               # API paths, HTTP calls, DTOs, interceptors
+├── stores/                 # Pinia — global state (auth, menus, loading)
+├── types/                  # Shared TypeScript types
+└── utils/                  # Pure helpers (format, export, authState)
+```
+
+### Data flow
+
+```
+pages / layouts / components
+        ↓
+   composables (Vue Query)
+        ↓
+   services (axios → REST API)
+```
+
+```
+plugins / middleware / interceptors
+        ↓
+   stores + utils/authState
+```
+
+- **Pages** orchestrate UI; fetch via **composables**; never call axios/REST directly when a composable exists.
+- **Services** own HTTP and DTOs; **composables** own caching/mutations; **stores** own session-wide state only.
+- **Utils** are pure/stateless; **components** are presentational or small action wrappers.
+
+### Project structure (composables)
+
+Group composables by domain/service:
+
+```
+app/composables/
+├── useNotify.ts
+└── {ServiceName}/
+    └── {resource}/
+        ├── use{Resource}Query.ts
+        └── use{Resource}Mutation.ts
+```
+
+### Project structure (services)
+
+```
+app/services/
+└── REST_SERVICES/
+    ├── routes/             # URL constants
+    ├── queries/            # GET
+    ├── mutations/          # POST / PUT / DELETE
+    ├── dto/                # Request/response types
+    └── interceptors.ts
+```
+
+## General Rules
+
+### TypeScript
+
+- **Always use TypeScript** — type parameters, return types, and non-trivial variables.
+- Avoid `any`; use DTOs from `services/REST_SERVICES/dto/` or explicit interfaces.
+- Prefer modern syntax: `?.`, `??`, `satisfies`, `as const`, type-only imports.
+- Fix type errors; do not weaken types to silence them.
+- Rely on Nuxt/Vue generated types (`.nuxt/`) after `yarn install`.
+
+### Formatting & linting
+
+- **Line length:** 100 characters.
+- **Prettier** for formatting; **ESLint** (Nuxt config) for linting.
+- **Import order:** built-in → external → internal/aliases (`~/`) → relative; group type-only imports.
+
+### Vue / Nuxt conventions
+
+- Use `<script setup lang="ts">` in `.vue` files (single script block).
+- Use `definePageMeta` for layout/middleware on route wrappers.
+- Read env via `useRuntimeConfig()` — not `process.env` in app code (see `env.mdc`).
+- Prefer composition over Options API.
+
+### Docstrings (JSDoc)
+
+Include JSDoc on all **exported** functions, composables, classes, and non-trivial utilities:
+
+```ts
+/**
+ * Brief description.
+ *
+ * @param param1 - Description of param1
+ * @param param2 - Description of param2
+ * @returns Description of return value
+ *
+ * @example
+ * const result = myFunction('a', 1)
+ */
+export function myFunction(param1: string, param2: number): ResultType {
+  // ...
+}
+```
+
+Use `@param`, `@returns`, and `@example` when helpful.
+
+## Layer Rule Index
+
+Consult these files when working in matching paths:
+
+| Rule file | Scope |
+|-----------|--------|
+| `yarn.mdc` | Package manager, scripts, lockfile |
+| `env.mdc` | `.env`, `.env.example`, `runtimeConfig` |
+| `pages.mdc` | `app/pages/**` — routing, page meta, list/form patterns |
+| `layouts.mdc` | `app/layouts/**` — shells, nested layouts |
+| `middleware.mdc` | `app/middleware/**` — auth guards, redirects |
+| `components.mdc` | `app/components/**` — props, emits, modals |
+| `composables.mdc` | `app/composables/**` — Vue Query, naming |
+| `services.mdc` | `app/services/**` — routes, queries, mutations, DTOs |
+| `stores.mdc` | `app/stores/**` — Pinia, auth, menus, loading |
+| `plugins.mdc` | `app/plugins/**` — app bootstrap, i18n, themes |
+| `assets.mdc` | `app/assets/**` — SCSS layers, images, fonts |
+| `utils.mdc` | `app/utils/**` — pure helpers, authState, export |
+
+## Do / Don't (Quick Reference)
+
+| Do | Don't |
+|----|--------|
+| `yarn dev`, `yarn add` | `npm install`, `pnpm install` |
+| `useRuntimeConfig().public.*` | `process.env` in components |
+| Composables → services | Pages → axios directly |
+| Pinia for auth/menus/loading | Pinia for paginated resource lists |
+| Extract reused UI to components | Copy-paste blocks across pages |
+| Commit `yarn.lock` | Commit `.env` or `node_modules/` |
+| JSDoc on exports | Empty or duplicate `<script setup>` blocks |
+
+## Adding a Feature (Checklist)
+
+1. **Routes** — `app/pages/` (+ parent wrapper if nested section).
+2. **Layout / middleware** — if new section needs shell or auth.
+3. **Services** — `routes/`, `dto/`, `queries/`, `mutations/`.
+4. **Composables** — `use*Query` / `use*Mutation` wrapping services.
+5. **Components** — shared UI extracted from pages.
+6. **Store** — only if state is global (auth, nav, loading).
+7. **Env** — new vars in `.env.example` + `nuxt.config.ts` if needed.
+
+## Agent Notes
+
+- Match existing patterns in the codebase and layer-specific `.mdc` rules.
+- Minimize diff scope — do not refactor unrelated code.
+- Run `yarn install` / `yarn dev` when verifying changes; use **Yarn** only.
+- Do not create commits unless the user asks.

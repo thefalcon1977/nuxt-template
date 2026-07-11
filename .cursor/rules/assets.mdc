@@ -1,0 +1,215 @@
+---
+description: Rules and conventions for static assets and styles
+globs: app/assets/**/*
+alwaysApply: false
+---
+
+# Assets
+
+Rules for files under `app/assets/`. Follow global rules in `global.mdc` for formatting and project conventions.
+
+## Purpose
+
+The `assets/` directory holds **processed static files** bundled by Nuxt/Vite: global styles, fonts, icons, and images. Files here are imported in app code; use `public/` for assets that must keep a fixed URL without processing.
+
+## Directory Structure
+
+```
+app/assets/
+├── styles/
+│   ├── app.scss                 # Global style entry point
+│   ├── base/                    # Variables, typography, resets, animations
+│   │   ├── _variables.scss
+│   │   ├── _typography.scss
+│   │   ├── _containers.scss
+│   │   ├── _framework.scss
+│   │   ├── _animations.scss
+│   │   └── index.scss
+│   ├── utils/                   # Mixins and helper classes
+│   │   ├── _mixins.scss
+│   │   ├── _helpers.scss
+│   │   └── index.scss
+│   ├── layouts/                 # Layout/shell styles (navbar, tabs, overlays)
+│   ├── components/              # Reusable UI partials (buttons, cards, forms, tables)
+│   ├── pages/                   # Page-specific styles (auth, profile, settings)
+│   └── vendors/                 # Third-party overrides (e.g. SweetAlert)
+├── icons/
+│   └── css/all.min.css          # Icon font / icon library CSS
+├── fonts/                       # Self-hosted font files (woff, woff2, ttf)
+└── img/
+    ├── auth/                    # Auth illustrations (login.svg, register.svg)
+    ├── icons/                   # UI icons (location-pin.svg, etc.)
+    ├── no-data-img.svg          # Shared empty-state illustration
+    └── loader.svg               # Loading placeholder
+```
+
+| Folder | Contents |
+|--------|----------|
+| `styles/` | SCSS/CSS source organized by layer |
+| `fonts/` | Web fonts referenced from `_typography.scss` |
+| `icons/` | Vendor icon CSS or custom icon assets |
+| `img/` | SVG/PNG/GIF illustrations and UI imagery |
+
+## Styles Architecture
+
+### Entry point
+
+Import one global stylesheet from a Nuxt plugin or `nuxt.config.ts`:
+
+```ts
+import '~/assets/styles/app.scss'
+import '~/assets/icons/css/all.min.css'
+```
+
+`app.scss` composes layers in order:
+
+```scss
+@use '../../node_modules/vuetify/lib/styles/main.sass';
+
+@use 'base/index' as base;
+@use 'utils/index' as utils;
+@use 'layouts/index' as layouts;
+@use 'components/index' as components;
+@use 'pages/index' as pages;
+@use 'vendors/index' as vendors;
+```
+
+**Layer order:** base → utils → layouts → components → pages → vendors.
+
+### Partials and indexes
+
+- Prefix partial files with **`_`** (`_variables.scss`, `_buttons.scss`).
+- Each folder has an **`index.scss`** that `@use`s its partials.
+- Use **`@use`**, not `@import`, for internal modules.
+- Reference variables/mixins with namespaces or `@use '...' as *`:
+
+```scss
+@use '../base/variables' as *;
+@use '../utils/mixins' as *;
+
+.btn {
+  border-radius: 0.5rem;
+}
+```
+
+### Layer responsibilities
+
+| Layer | Scope |
+|-------|--------|
+| `base/` | SCSS variables, typography, `@font-face`, global resets, scrollbars |
+| `utils/` | Mixins (`absolute-overlay`, breakpoints) and utility classes |
+| `layouts/` | App shell: navbar, tabs, side columns, overlays |
+| `components/` | Buttons, cards, forms, modals, tables, notifications |
+| `pages/` | Styles scoped to specific routes (auth, profile, download) |
+| `vendors/` | Overrides for third-party libraries |
+
+- Put styles in the **lowest appropriate layer** — page-specific rules in `pages/`, shared UI in `components/`.
+- Do not add one-off page styles to `base/` or `app.scss`.
+
+### Variables
+
+Define design tokens in `base/_variables.scss`:
+
+```scss
+$primary: #00bfb3;
+$secondary: #00a6ed;
+$background: #f5f9ff;
+$text-color: #374355;
+```
+
+- Use variables for colors, shadows, and shared sizes.
+- Prefer theme/CSS custom properties when integrating with a UI framework (Vuetify, Nuxt UI).
+
+### RTL support
+
+Wrap direction-sensitive rules in RTL ignore comments when needed:
+
+```scss
+/*!rtl:begin:ignore*/
+left: 0 !important;
+right: initial !important;
+/*!rtl:end:ignore*/
+```
+
+## Images
+
+- Store illustrations and UI graphics under `img/`, grouped by feature (`img/auth/`, `img/icons/`).
+- Reference in templates with the **`~/assets/`** alias:
+
+```vue
+<v-img src="~/assets/img/no-data-img.svg" />
+<v-img src="~/assets/img/auth/login.svg" />
+```
+
+- Use **SVG** for icons and illustrations when possible.
+- Reuse shared assets (`no-data-img.svg`, `loader.svg`) across pages and components.
+- Use descriptive, kebab-case filenames (`no-data-img.svg`, `green-logo.svg`).
+
+## Fonts
+
+- Place font files in `assets/fonts/`.
+- Declare `@font-face` in `base/_typography.scss` with woff2/woff/ttf fallbacks.
+- Reference family names consistently in typography and theme config.
+
+## Icons
+
+- Vendor icon CSS (e.g. Font Awesome) lives under `assets/icons/css/`.
+- Import icon CSS once in the app plugin alongside global styles.
+- Prefer icon components or the UI library’s icon set for new work; add vendor CSS only when the project already depends on it.
+
+## `assets/` vs `public/`
+
+| Location | Use for |
+|----------|---------|
+| `app/assets/` | Styles, fonts, images imported in Vue/TS, Vite-processed files |
+| `public/` | `robots.txt`, favicons, files needing a fixed root URL (`/file.pdf`) |
+
+## Naming Conventions
+
+- **SCSS partials:** `_kebab-case.scss`
+- **Images:** `kebab-case.svg` / `.png`
+- **Folders:** plural or feature name (`fonts/`, `img/auth/`, `styles/components/`)
+
+## What Not to Put in Assets
+
+- Vue components (use `app/components/`).
+- API logic or JSON config.
+- Windows metadata files (`*.Zone.Identifier`) — exclude from the repo.
+- Duplicate copies of the same image under multiple paths.
+- Large unoptimized binaries when SVG or compression is sufficient.
+
+## Adding New Assets
+
+### New global style partial
+
+1. Add `_my-feature.scss` in the correct layer folder.
+2. `@use` it from that folder’s `index.scss`.
+3. Keep variables in `base/`, mixins in `utils/`.
+
+### New image
+
+1. Save under `app/assets/img/{feature}/`.
+2. Reference as `~/assets/img/{feature}/{name}.svg` in templates.
+3. Reuse existing empty-state/loader assets before adding new ones.
+
+### New page-specific styles
+
+1. Create `styles/pages/_my-page.scss`.
+2. Register in `styles/pages/index.scss`.
+3. Scope selectors to a page class (e.g. `.page-wrapper`, `.auth-page`) to avoid leaks.
+
+## Nuxt UI / Tailwind Projects
+
+When using Nuxt UI + Tailwind (e.g. `app/assets/css/main.css`), keep framework imports in the CSS entry:
+
+```css
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: 'Public Sans', sans-serif;
+}
+```
+
+- Extend theme tokens in `@theme` rather than scattering magic values in components.
+- Add SCSS layers under `app/assets/styles/` only when the project adopts SCSS alongside Tailwind.

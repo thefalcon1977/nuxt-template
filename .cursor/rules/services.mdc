@@ -1,0 +1,299 @@
+---
+description: Rules and conventions for API and client services
+globs: app/services/**/*
+alwaysApply: false
+---
+
+# Services
+
+Rules for files under `app/services/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Services are the **API and client-side persistence layer**. They define endpoint paths, request/response types, and HTTP calls. Composables wrap services with TanStack Query; pages should not call services directly.
+
+## Directory Structure
+
+```
+app/services/
+├── storageServices.ts              # Encrypted local storage utility
+└── REST_SERVICES/
+    ├── interceptors.ts             # Axios request/response interceptors
+    ├── routes/
+    │   ├── auth.ts                 # Auth endpoint paths
+    │   ├── store.ts                # Store/resource endpoint paths
+    │   └── werehouse.ts            # Warehouse endpoint paths
+    ├── queries/
+    │   ├── auth/
+    │   │   ├── getCurrentUser.ts
+    │   │   └── captcha.ts
+    │   ├── store/
+    │   │   ├── agent.ts
+    │   │   ├── device.ts
+    │   │   └── command.ts
+    │   └── werehouse/
+    │       └── jsonData.ts
+    ├── mutations/
+    │   ├── auth/
+    │   │   ├── login.ts
+    │   │   ├── logout.ts
+    │   │   └── refreshToken.ts
+    │   └── store/
+    │       ├── agents.ts
+    │       ├── devices.ts
+    │       └── command.ts
+    └── dto/
+        ├── base.ts                 # Shared response shapes (pagination)
+        ├── query/
+        │   ├── auth/
+        │   └── store/
+        └── mutation/
+            └── auth/
+```
+
+| Layer | Responsibility |
+|-------|----------------|
+| `routes/` | URL path constants only — no HTTP logic |
+| `queries/` | GET/read API functions |
+| `mutations/` | POST, PUT, PATCH, DELETE API functions |
+| `dto/` | Request/response TypeScript interfaces |
+| `interceptors.ts` | Global axios hooks (auth, loading, errors) |
+
+## Routes
+
+Centralize paths in route modules grouped by API domain:
+
+```ts
+export const storeQueryRoutes = {
+  getAgent: '/store/agent/',
+  deleteAgent: '/store/agent/',
+  getDevice: '/store/device/',
+  getCommand: '/store/command/',
+}
+
+export const authQueryRoutes = {
+  login: '/auth/token/',
+  getCurrentUser: '/auth/users/',
+  logout: '/auth/token/blacklist/',
+  refreshToken: '/auth/token/refresh/',
+  captchaGenerate: '/auth/captcha/generate/',
+}
+```
+
+- Export a **named const object** per domain (`storeQueryRoutes`, `authQueryRoutes`).
+- Use trailing slashes consistently with the backend.
+- Never hardcode URLs inside query/mutation functions — import from `routes/`.
+- List paths only; no axios calls in route files.
+
+## Query Functions (GET)
+
+One file per resource under `queries/{domain}/`:
+
+```ts
+import type {
+  GetAgentResponse,
+  GetAgentByUUIDResponse,
+} from '~/services/REST_SERVICES/dto/query/store/agent'
+import { storeQueryRoutes } from '~/services/REST_SERVICES/routes/store'
+
+/**
+ * Fetches a paginated agent list.
+ *
+ * @param page - Page number
+ * @param page_size - Items per page
+ * @returns Agent list response
+ */
+export function getAgent(page = 1, page_size = 10): Promise<GetAgentResponse> {
+  const { $axios } = useNuxtApp()
+  return $axios.get(storeQueryRoutes.getAgent, {
+    params: { page, page_size },
+  })
+}
+
+export function getAgentByUUID(uuid: string): Promise<GetAgentByUUIDResponse> {
+  const { $axios } = useNuxtApp()
+  return $axios.get(`${storeQueryRoutes.getAgent}${uuid}`)
+}
+```
+
+### Query rules
+
+- Export **named functions** (`getAgent`, `getDeviceByIMEI`, `getCurrentUser`).
+- Access HTTP client via **`useNuxtApp().$axios`** (provided by the axios plugin).
+- Type return values with DTO interfaces (`Promise<GetAgentResponse>` or generic `$axios.get<T>`).
+- Pass filters and pagination as **`params`**.
+- Build detail URLs by appending IDs to the collection path (`${route}${uuid}`).
+- Normalize array filters before sending (e.g. join platform names with commas).
+
+## Mutation Functions (POST/PUT/DELETE)
+
+Place write operations in `mutations/{domain}/`:
+
+```ts
+import { storeQueryRoutes } from '~/services/REST_SERVICES/routes/store'
+import type { GetAgentResponse } from '~/services/REST_SERVICES/dto/query/store/agent'
+import type { AgentCreatePayload } from '~/services/REST_SERVICES/dto/mutation/store/agent'
+
+export function createAgent(agentData: AgentCreatePayload) {
+  const { $axios } = useNuxtApp()
+  return $axios.post<GetAgentResponse>(storeQueryRoutes.getAgent, agentData)
+}
+
+export function updateAgentByUUID(uuid: string, agentData: AgentUpdatePayload) {
+  const { $axios } = useNuxtApp()
+  return $axios.put<GetAgentResponse>(`${storeQueryRoutes.getAgent}${uuid}/`, agentData)
+}
+
+export function deleteAgentByUUID(uuid: string) {
+  const { $axios } = useNuxtApp()
+  return $axios.delete(`${storeQueryRoutes.deleteAgent}${uuid}`)
+}
+```
+
+- Use the correct HTTP verb: **post** (create), **put/patch** (update), **delete** (remove).
+- Type request bodies with **`dto/mutation/`** interfaces — avoid `any`.
+- Auth flows (`login`, `logout`, `refreshToken`) belong in `mutations/auth/`.
+
+## DTOs (Types)
+
+Define request/response shapes under `dto/`:
+
+```
+dto/
+├── base.ts                    # Shared pagination/status wrappers
+├── query/{domain}/{resource}.ts
+└── mutation/{domain}/{resource}.ts
+```
+
+### Base response
+
+```ts
+export interface ExtraResponse {
+  next: string
+  previous: string
+  count: string
+  PresentPage: string
+  currentSize: string
+  AllPage: string
+}
+
+export interface BaseResponse extends ExtraResponse {
+  status: boolean
+}
+```
+
+### Resource DTOs
+
+```ts
+// dto/mutation/auth/login.ts
+export interface UserLoginRequest {
+  username: string
+  password: string
+  captcha_code?: string
+  captcha_hashkey?: string
+}
+
+export interface UserLoginResponse {
+  access: string
+  refresh: string
+}
+
+// dto/query/store/agent.ts
+export interface GetAgentResponse extends BaseResponse {
+  data: Agent[]
+}
+```
+
+- **Request** types: `{Action}{Resource}Request` or `{Resource}CreatePayload`.
+- **Response** types: `Get{Resource}Response`, `{Action}{Resource}Response`.
+- Mirror API field names; use optional `?` for nullable fields.
+- Share pagination fields via `BaseResponse` / `ExtraResponse`.
+
+## Interceptors
+
+Keep axios interceptors in `REST_SERVICES/interceptors.ts`; register them from the axios plugin.
+
+```ts
+export async function onRequest(config: InternalAxiosRequestConfig): Promise<InternalAxiosRequestConfig> {
+  // loading, auth guard, withCredentials
+  return config
+}
+
+export function onResponse(response: AxiosResponse): AxiosResponse {
+  // stop loading
+  return response
+}
+
+export async function onResponseError(error: AxiosError): Promise<AxiosError> {
+  // 401 refresh/retry, redirect to login, status logging
+  return Promise.reject(error)
+}
+```
+
+- **onRequest**: start loading, set `withCredentials`, skip/block unauthenticated non-auth requests.
+- **onResponse**: stop loading, return response unchanged.
+- **onResponseError**: handle 401 with token refresh + retry; redirect on auth failure; log by status code.
+- Use flags to prevent **infinite retry/redirect loops**.
+- Allow auth endpoints (`/auth/`, `/login`, `/captcha/`) through without blocking.
+
+## Client Storage Service
+
+Non-HTTP utilities live at the services root (e.g. encrypted local storage):
+
+```ts
+export class StorageService {
+  static setItem(key: string, value: unknown): void { /* ... */ }
+  static getItem<T>(key: string): T | null { /* ... */ }
+  static removeItem(key: string): null { /* ... */ }
+}
+```
+
+- Use for theme/locale persistence and client-only preferences.
+- Prefer TypeScript (`.ts`) with typed keys/values over untyped `.js`.
+
+## Naming Conventions
+
+| Item | Convention | Example |
+|------|------------|---------|
+| Route objects | `{domain}QueryRoutes` | `storeQueryRoutes` |
+| Query functions | `get{Resource}`, `get{Resource}By{Id}` | `getAgentByUUID` |
+| Mutations | `create`, `update`, `delete`, domain verb | `userLogin`, `deleteAgentByUUID` |
+| Request DTOs | `{Name}Request`, `{Name}Payload` | `UserLoginRequest` |
+| Response DTOs | `Get{Name}Response` | `GetDeviceResponse` |
+
+## Dependencies
+
+| Allowed | Avoid |
+|---------|--------|
+| `useNuxtApp().$axios` | Calling composables from services |
+| Route constants | Vue components |
+| DTO type imports | Direct page imports (use composables) |
+| Stores in interceptors only | Business UI logic |
+
+**Call flow:** `pages` → `composables` → `services` → API
+
+## What Not to Put in Services
+
+- TanStack Query (`useQuery` / `useMutation`) — belongs in composables.
+- Toast notifications — composables or interceptors only when global.
+- Vue reactivity (`ref`, `computed`) — not in service functions.
+- Component markup or routing guards.
+
+## Adding a New Resource
+
+1. Add paths to `routes/{domain}.ts`.
+2. Create `dto/query/{domain}/{resource}.ts` (and mutation DTOs if needed).
+3. Add `queries/{domain}/{resource}.ts` with typed GET functions.
+4. Add `mutations/{domain}/{resource}.ts` for write operations.
+5. Create composables in `app/composables/` that wrap these functions with Vue Query.
+6. Add JSDoc to exported service functions and DTO interfaces.
+
+## Domain Split
+
+| Domain | Routes file | Examples |
+|--------|-------------|----------|
+| `auth` | `routes/auth.ts` | login, logout, current user, captcha |
+| `store` | `routes/store.ts` | agents, devices, commands, files, menus |
+| `werehouse` | `routes/werehouse.ts` | JSON/warehouse data |
+
+Add a new domain folder set (`routes`, `queries`, `mutations`, `dto`) when the API surface is distinct from existing domains.

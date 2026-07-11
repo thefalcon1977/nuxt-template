@@ -1,0 +1,108 @@
+---
+description: Yarn package manager rules for this project
+alwaysApply: true
+---
+
+# Yarn
+
+This project uses **Yarn Classic (v1.22.22)** as the package manager. Follow global rules in `global.mdc` for TypeScript and code conventions.
+
+## Package Manager
+
+- **Use Yarn only** for install, add, remove, and scripts — not npm or pnpm in day-to-day work.
+- Version is pinned in `package.json`:
+
+```json
+"packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+```
+
+- Commit **`yarn.lock`** with dependency changes. Do not commit conflicting lockfiles from other managers.
+
+## Setup (First Time / `command not found: yarn`)
+
+Node ships with **Corepack**. Enable the pinned Yarn version:
+
+```bash
+corepack enable
+corepack prepare yarn@1.22.22 --activate
+yarn --version   # should print 1.22.22
+```
+
+Then install dependencies:
+
+```bash
+yarn install
+```
+
+If `yarn` is still missing in a new terminal, run `corepack enable` again or restart the shell.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `yarn install` | Install dependencies; runs `postinstall` → `nuxt prepare` |
+| `yarn dev` | Start dev server → http://localhost:3000 |
+| `yarn build` | Production build |
+| `yarn generate` | Static site generation |
+| `yarn preview` | Preview production build locally |
+
+Always run scripts via **`yarn <script>`**, not `npm run`.
+
+## Adding & Removing Dependencies
+
+```bash
+# Production dependency
+yarn add <package>
+
+# Dev dependency
+yarn add -D <package>
+
+# Remove
+yarn remove <package>
+```
+
+- Prefer **exact or caret ranges** consistent with existing `package.json` entries.
+- After adding packages, verify `yarn dev` and `yarn build` still pass.
+- Do not hand-edit `yarn.lock` unless resolving merge conflicts.
+
+## postinstall
+
+`package.json` defines:
+
+```json
+"postinstall": "nuxt prepare"
+```
+
+- Runs automatically after `yarn install` — generates Nuxt types in `.nuxt/`.
+- If types are missing, run `yarn install` or `yarn postinstall` manually.
+
+## Lockfile & CI
+
+- **`yarn.lock`** is the source of truth for reproducible installs.
+- CI should use `yarn install --frozen-lockfile` (or `yarn install --immutable` on Yarn 2+; this project uses Yarn 1 → `--frozen-lockfile`).
+- Do not delete `yarn.lock` unless intentionally resetting dependencies.
+
+## What Not to Do
+
+- Do not run `npm install`, `pnpm install`, or `bun install` in this repo (creates conflicting lockfiles).
+- Do not commit `node_modules/`.
+- Do not upgrade to Yarn Berry (v2+) without a team decision — this project targets **Yarn Classic 1.x**.
+- Do not skip `yarn install` after pulling changes that touch `package.json` or `yarn.lock`.
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `command not found: yarn` | `corepack enable` + `corepack prepare yarn@1.22.22 --activate` |
+| Missing Nuxt types | `yarn install` or `nuxt prepare` |
+| Stale deps after pull | `yarn install` |
+| Lockfile conflict | Resolve in `yarn.lock`, then `yarn install` |
+
+## Agent / Automation Notes
+
+When installing dependencies or running scripts in this repository:
+
+1. Use **`yarn`**, not npm/pnpm.
+2. Enable Corepack first if Yarn is unavailable.
+3. Use **`yarn add`** / **`yarn remove`** for dependency changes.
+4. Include **`yarn.lock`** updates in commits that change dependencies.

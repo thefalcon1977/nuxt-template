@@ -1,0 +1,248 @@
+---
+description: Rules and conventions for utility functions and shared helpers
+globs: app/utils/**/*
+alwaysApply: false
+---
+
+# Utils
+
+Rules for files under `app/utils/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Utils hold **pure, stateless helper functions** and small shared modules used across pages, components, stores, services, and plugins. No Vue components, no route definitions, no HTTP endpoint logic.
+
+## Directory Structure
+
+```
+app/utils/
+├── authState.ts          # Sync auth flags (no Pinia dependency)
+├── auth.ts               # Auth helper functions (bridge to store)
+├── variables.ts          # App-wide constants (formats, config values)
+├── dateFormat.ts         # Date/time formatting
+├── functions.ts          # Display mappers (icons, chip colors, status labels)
+├── jsonToCsv.ts          # JSON → CSV conversion
+├── jsonToExcel.ts        # JSON → Excel worksheet structure
+├── downloadCsv.ts        # Trigger CSV file download in browser
+├── downloadExcel.ts      # Trigger Excel file download (dynamic xlsx import)
+└── eventBus.ts           # Lightweight pub/sub (use sparingly)
+```
+
+Organize by **concern** — one file per domain. Split when a file grows beyond related helpers (e.g. export logic separate from date formatting).
+
+## Categories
+
+| Category | Files | Used by |
+|----------|-------|---------|
+| Auth | `authState.ts`, `auth.ts` | plugins, middleware, interceptors, stores |
+| Constants | `variables.ts` | dateFormat, other utils |
+| Formatting | `dateFormat.ts` | pages, tables |
+| Display mappers | `functions.ts` | pages, components (icons, chip colors) |
+| Export | `jsonToCsv`, `jsonToExcel`, `downloadCsv`, `downloadExcel` | components |
+| Events | `eventBus.ts` | cross-component signals (last resort) |
+
+## Function Conventions
+
+- Export **named functions** or **named constants** — avoid default exports except thin wrappers (e.g. event bus).
+- Keep functions **pure** when possible: same input → same output, no hidden side effects.
+- Add **JSDoc** (`@param`, `@returns`) on exported functions.
+- Use explicit TypeScript types; avoid `any` (replace with generics or record types).
+- Use **kebab-case** or descriptive **camelCase** filenames (`dateFormat.ts`, `authState.ts`).
+
+```ts
+/**
+ * Maps a platform name to a Vuetify/MDI icon identifier.
+ *
+ * @param platformName - OS/platform label from the API
+ * @returns Icon name string
+ */
+export function getPlatformIcon(platformName: string): string {
+  switch (platformName.toLowerCase()) {
+    case 'android':
+      return 'mdi-android'
+    case 'windows':
+      return 'mdi-microsoft'
+    case 'ios':
+      return 'mdi-apple'
+    default:
+      return 'mdi-help-circle'
+  }
+}
+```
+
+## Auth Utilities
+
+### `authState.ts` — sync module (no Pinia)
+
+Lightweight auth flags for interceptors and middleware before/alongside the Pinia store:
+
+```ts
+let isAuthenticated = false
+let isInitialized = false
+
+export const authState = {
+  setAuthenticated(value: boolean): void {
+    isAuthenticated = value
+    isInitialized = true
+  },
+  isAuthenticated(): boolean {
+    return isAuthenticated
+  },
+  isInitialized(): boolean {
+    return isInitialized
+  },
+  reset(): void {
+    isAuthenticated = false
+    isInitialized = false
+  },
+  initialize(): void {
+    isInitialized = true
+  },
+}
+```
+
+- Keep this module **free of Pinia imports** so interceptors can read auth synchronously.
+- Sync with `useAuthStore` whenever user session changes.
+
+### `auth.ts` — store bridge helpers
+
+```ts
+export function shouldAllowRequest(url: string): boolean {
+  const isAuthEndpoint = /* /auth/, /login/, /captcha/, etc. */
+  if (isAuthEndpoint) return true
+  return authState.isAuthenticated()
+}
+
+export function isAuthenticated(): boolean {
+  return useAuthStore().isAuthenticated
+}
+```
+
+- **`shouldAllowRequest`**: used by HTTP interceptors to gate non-auth endpoints.
+- Prefer **`authState`** in interceptors; use **`useAuthStore`** in components/pages when reactive user data is needed.
+
+## Constants
+
+Centralize magic strings and format patterns:
+
+```ts
+export const JALALI_DATETIME_FORMAT = 'jYYYY/jMM/jDD HH:mm:ss'
+export const GREGORIAN_DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
+```
+
+- File name: **`variables.ts`** (not `varibels.ts`).
+- No functions in constants files — exports are `const` values only.
+
+## Date Formatting
+
+```ts
+import moment from 'jalali-moment'
+import { JALALI_DATETIME_FORMAT, GREGORIAN_DATE_FORMAT } from '~/utils/variables'
+
+export function toJalaliDate(
+  date: Date | string | null,
+  jalaliFormat = JALALI_DATETIME_FORMAT,
+  gregorianFormat = GREGORIAN_DATE_FORMAT,
+): string {
+  if (date === null) return ''
+  return moment(date, gregorianFormat).format(jalaliFormat)
+}
+```
+
+- Handle **null/undefined** inputs with safe defaults.
+- Import format strings from `variables.ts`.
+
+## Display Mappers
+
+Group UI mapping helpers in `functions.ts` (platform icons, chip colors, status labels):
+
+```ts
+export function getOsIconColor(platformName: string): string { /* ... */ }
+export function getChipColorStatus(statusValue: string): string { /* ... */ }
+export function getChipTitleStatus(statusValue: string): string { /* ... */ }
+export function getChipColorLastSeen(lastSeenValue: string): string { /* ... */ }
+```
+
+- Return **design-system tokens** (color names, icon strings) — not rendered components.
+- Use `switch` or lookup maps for finite enum-like values.
+
+## Export Utilities
+
+Split conversion from download:
+
+| Step | File | Responsibility |
+|------|------|----------------|
+| Transform | `jsonToCsv.ts`, `jsonToExcel.ts` | Data shape conversion |
+| Download | `downloadCsv.ts`, `downloadExcel.ts` | Browser file save |
+
+```ts
+export function jsonToCsv(jsonData: Record<string, unknown>[]): string {
+  if (!jsonData.length) return ''
+  const headers = Object.keys(jsonData[0]).join(',') + '\n'
+  // escape quotes in string values
+  return headers + rows
+}
+
+export function downloadCsv(csvData: string, filename: string): void {
+  if (!import.meta.client) return
+  const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
+  // create temporary <a>, click, remove
+}
+```
+
+- Guard **DOM operations** with `import.meta.client`.
+- Dynamic-import heavy libs (`xlsx`) inside download helpers.
+- Generate filenames with timestamps in the **caller** (component), not the util.
+
+## Event Bus
+
+```ts
+import emitter from 'tiny-emitter/instance'
+
+export const eventBus = {
+  on: emitter.on.bind(emitter),
+  once: emitter.once.bind(emitter),
+  off: emitter.off.bind(emitter),
+  emit: emitter.emit.bind(emitter),
+}
+```
+
+- Use **only** when props/emits or composables cannot connect distant components.
+- Prefer Pinia or composables for shared state over global events.
+
+## Dependencies
+
+| Allowed | Avoid |
+|---------|--------|
+| Other utils, constants | Vue SFCs, `<template>` |
+| Thin read of Pinia in bridge helpers (`auth.ts`) | Defining stores in utils |
+| Third-party pure libs (moment, xlsx) | Direct axios / REST calls |
+| DOM APIs in download helpers (client-only) | TanStack Query |
+
+**Preferred call flow for API data:** `pages` → `composables` → `services`  
+**Utils:** called from any layer for formatting, mapping, export, auth checks.
+
+## What Not to Put in Utils
+
+- REST queries/mutations (use `app/services/`).
+- Vue Query hooks (use `app/composables/`).
+- Pinia store definitions (use `app/stores/`).
+- Middleware or plugin registration.
+- Large business workflows — use composables or services.
+
+## Adding a New Util
+
+1. Identify a **repeated, stateless** operation used in 2+ places.
+2. Create `app/utils/{concern}.ts` with typed exports and JSDoc.
+3. Keep constants in `variables.ts`; add mappers to `functions.ts` or a feature-specific file.
+4. If the helper needs browser APIs, guard with `import.meta.client`.
+5. Write unit-testable pure logic; avoid coupling to component instance context.
+
+## Naming Fixes (Legacy)
+
+The reference project uses typos — use correct names in new code:
+
+| Legacy | Preferred |
+|--------|-----------|
+| `varibels.ts` | `variables.ts` |
+| `fanctions.ts` | `functions.ts` |

@@ -1,0 +1,275 @@
+---
+description: Rules and conventions for Nuxt plugins
+globs: app/plugins/**/*
+alwaysApply: false
+---
+
+# Plugins
+
+Rules for files under `app/plugins/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Plugins **bootstrap third-party libraries** and **app-wide setup** at startup: UI frameworks, HTTP clients, i18n, notifications, auth initialization. Keep plugins thin — delegate business logic to stores, services, and composables.
+
+## Directory Structure
+
+```
+app/plugins/
+├── auth.ts                    # Auth store initialization (runs early)
+├── axios.ts                   # HTTP client, interceptors, provide
+├── notifications.ts           # Toast/notification library
+├── vuetify.ts                 # UI framework + global CSS + theme/i18n wiring
+├── vue-query.ts               # TanStack Vue Query
+├── themes/
+│   ├── light.ts               # Light theme definition
+│   └── dark.ts                # Dark theme definition
+└── i18n/
+    ├── config.ts              # createI18n instance (imported by UI plugin)
+    ├── messages.ts            # Aggregates locale message modules
+    └── translations/
+        ├── en.ts
+        └── fa.ts
+```
+
+| File kind | Role |
+|-----------|------|
+| `*.ts` at plugin root | Nuxt plugins (`defineNuxtPlugin`) |
+| `themes/` | Theme token definitions imported by UI plugins |
+| `i18n/` | Locale config and translation files (not always standalone plugins) |
+
+## Plugin Registration
+
+Nuxt auto-discovers files in `app/plugins/`. Control **order** for setup-critical plugins in `nuxt.config.ts`:
+
+```ts
+export default defineNuxtConfig({
+  plugins: [
+    '~/plugins/auth.ts',
+    '~/plugins/axios.ts',
+    '~/plugins/notifications.ts',
+  ],
+})
+```
+
+**Recommended order:**
+
+1. **Auth** — restore session before routed content loads.
+2. **HTTP client** — axios/fetch interceptors before data requests.
+3. **Notifications** — available for error/success feedback.
+4. **UI framework** — Vuetify/Nuxt UI (often auto-discovered).
+5. **Data layer** — Vue Query and similar.
+
+## Plugin Structure
+
+Every Nuxt plugin exports `defineNuxtPlugin`:
+
+```ts
+import { defineNuxtPlugin } from '#app'
+
+/**
+ * Registers the notification system on the Vue app.
+ *
+ * @param nuxtApp - Nuxt application instance
+ */
+export default defineNuxtPlugin((nuxtApp) => {
+  nuxtApp.vueApp.use(Notifications)
+})
+```
+
+- Import `defineNuxtPlugin` from `#app`.
+- Use **`async`** only when awaiting initialization (e.g. auth store).
+- Add JSDoc on non-trivial plugins.
+
+## Patterns by Concern
+
+### Vue library registration
+
+Use `nuxtApp.vueApp.use()` for Vue plugins:
+
+```ts
+import { VueQueryPlugin } from '@tanstack/vue-query'
+
+export default defineNuxtPlugin((nuxtApp) => {
+  nuxtApp.vueApp.use(VueQueryPlugin)
+})
+```
+
+### App-wide provide/inject
+
+Expose clients via `nuxtApp.provide()`:
+
+```ts
+export default defineNuxtPlugin((nuxtApp) => {
+  const config = useRuntimeConfig()
+  axios.defaults.baseURL = config.public.apiBaseUrl
+
+  nuxtApp.provide('axios', axios)
+})
+```
+
+- Read env values from **`useRuntimeConfig()`**, not `process.env` directly in client code.
+- Set default headers and base URL in the plugin, not in individual services.
+
+### HTTP interceptors
+
+Register interceptors in the axios plugin; implement handlers in the services layer:
+
+```ts
+import {
+  onRequest,
+  onRequestError,
+  onResponse,
+  onResponseError,
+} from '~/services/REST_SERVICES/interceptors'
+
+export default defineNuxtPlugin((nuxtApp) => {
+  axios.interceptors.request.use(onRequest, onRequestError)
+  axios.interceptors.response.use(onResponse, onResponseError)
+  // ...
+})
+```
+
+- Interceptor **logic** lives in `~/services/**/interceptors`.
+- The plugin only **wires** interceptors and defaults.
+
+### Auth initialization
+
+Run session restore early with an async plugin:
+
+```ts
+export default defineNuxtPlugin(async () => {
+  authState.initialize()
+
+  const authStore = useAuthStore()
+  await authStore.initializeStore()
+})
+```
+
+- Do not render protected routes before auth init completes when SSR/hydration depends on user state.
+- Keep token/session helpers in `~/utils/` (e.g. `authState`).
+
+### UI framework plugin
+
+Centralize UI library setup, global CSS, themes, and locale adapter:
+
+```ts
+import '~/assets/styles/app.scss'
+import '~/assets/icons/css/all.min.css'
+import light from '~/plugins/themes/light'
+import dark from '~/plugins/themes/dark'
+import i18n from './i18n/config'
+
+export default defineNuxtPlugin((nuxtApp) => {
+  const vuetify = createVuetify({
+    theme: { defaultTheme: 'dark', themes: { light, dark } },
+    locale: { adapter: createVueI18nAdapter({ i18n, useI18n }) },
+  })
+  nuxtApp.vueApp.use(vuetify)
+})
+```
+
+- Import **global styles and icon CSS** once here (or in `nuxt.config` css array).
+- Import theme definitions from `plugins/themes/`, not inline in the plugin body.
+
+## Themes
+
+Define themes as typed modules in `plugins/themes/`:
+
+```ts
+import type { ThemeDefinition } from 'vuetify'
+
+const light: ThemeDefinition = {
+  dark: false,
+  colors: {
+    background: '#f5f9ff',
+    primary: '#00BFB3',
+    // ...
+  },
+  variables: {
+    cardBoxShadowAlpha: 0.09,
+  },
+}
+
+export default light
+```
+
+- One file per theme (`light.ts`, `dark.ts`).
+- Align color tokens with `assets/styles/base/_variables.scss` when both exist.
+- Export default; import in the UI plugin.
+
+## i18n
+
+Organize translations under `plugins/i18n/`:
+
+```
+i18n/
+├── config.ts           # createI18n({ legacy: false, locale, messages })
+├── messages.ts         # { fa, en } aggregation
+└── translations/
+    ├── en.ts
+    └── fa.ts
+```
+
+```ts
+// config.ts
+import { createI18n } from 'vue-i18n'
+import messages from './messages'
+
+const i18n = createI18n({
+  legacy: false,
+  locale: 'en',
+  fallbackLocale: 'en',
+  messages,
+})
+
+export default i18n
+```
+
+- **`messages.ts`** imports and re-exports locale modules — do not define all strings in one file.
+- Split **`translations/{locale}.ts`** by language; nest keys by feature (`sidebar`, `pages`, `component`).
+- Include framework locale packs when needed (e.g. `$vuetify` keys in `en.ts`).
+- `config.ts` exports the i18n instance; wire it from the UI plugin or a dedicated i18n plugin.
+
+## Naming
+
+- Plugin files: **kebab-case** or single-word (`auth.ts`, `vue-query.ts`, `notifications.ts`).
+- Theme files: `light.ts`, `dark.ts`.
+- Translation files: ISO locale codes (`en.ts`, `fa.ts`).
+
+## Dependencies
+
+| Allowed in plugins | Avoid in plugins |
+|--------------------|------------------|
+| `defineNuxtPlugin`, `useRuntimeConfig` | Page components |
+| `nuxtApp.vueApp.use()`, `nuxtApp.provide()` | Direct DOM manipulation |
+| Store initialization (`useAuthStore`) | Feature-specific business rules |
+| Service interceptors (import handlers only) | Large translation blobs inline |
+| Global CSS/asset imports | Duplicate plugin registration |
+
+## What Not to Put in Plugins
+
+- Route middleware logic (use `app/middleware/`).
+- Page-level data fetching.
+- Reusable UI (use `app/components/`).
+- REST endpoint functions (use `~/services/`).
+- Composable logic (use `app/composables/`).
+
+## Adding a New Plugin
+
+1. Create `app/plugins/my-feature.ts` with `defineNuxtPlugin`.
+2. If order matters, add it to the `plugins` array in `nuxt.config.ts`.
+3. For Vue libraries: `nuxtApp.vueApp.use(MyLibrary)`.
+4. For shared clients: configure defaults + `nuxtApp.provide('key', instance)`.
+5. For config-only modules (themes, translations): place in a subfolder and import from the main plugin.
+6. Document env vars in `runtimeConfig.public` when the plugin reads them.
+
+## Minimal Nuxt UI / Tailwind Stack
+
+Projects without Vuetify may only need:
+
+- `vue-query.ts` — data fetching
+- `axios.ts` or `$fetch` setup — API client
+- `auth.ts` — session bootstrap
+
+Skip `themes/` and Vuetify-specific i18n adapters when using Nuxt UI; configure theme via `app.config.ts` and Tailwind `@theme` in assets instead.

@@ -1,0 +1,247 @@
+---
+description: Rules and conventions for Pinia stores
+globs: app/stores/**/*
+alwaysApply: false
+---
+
+# Stores
+
+Rules for files under `app/stores/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Stores hold **global, cross-cutting application state** shared across layouts, middleware, plugins, and interceptors: authentication, navigation menus, and loading indicators. Resource-specific list/detail data belongs in composables (Vue Query), not stores.
+
+## Directory Structure
+
+```
+app/stores/
+├── permission.ts       # Auth store (useAuthStore)
+├── menu.ts             # Page + device navigation menus
+└── loading.ts          # Global request loading flag
+```
+
+| Store | Export | Scope |
+|-------|--------|-------|
+| `permission.ts` | `useAuthStore` | Current user, login/logout, session init |
+| `menu.ts` | `usePageMenuStore`, `useDeviceMenuStore` | Sidebar navigation items |
+| `loading.ts` | `useLoadingStore` | Global loading overlay during HTTP calls |
+
+## When to Use a Store vs Composable
+
+| Use a **store** | Use a **composable** |
+|-----------------|----------------------|
+| Auth session (`user`, `isAuthenticated`) | Paginated agent/device lists |
+| App-wide loading flag | Create/update/delete mutations |
+| Navigation menus for layouts | Warehouse JSON data queries |
+| State read in middleware/interceptors | Page-local UI state |
+
+**Call flow for resource data:** `pages` → `composables` → `services`  
+**Call flow for global state:** `layouts / middleware / plugins` → `stores` → `services`
+
+## Store Definition
+
+Use Pinia **`defineStore`** with the options API (`state`, `getters`, `actions`):
+
+```ts
+import { defineStore } from 'pinia'
+
+interface AuthState {
+  user: User | null
+}
+
+/**
+ * Manages authenticated user session and auth actions.
+ */
+export const useAuthStore = defineStore('auth', {
+  state: (): AuthState => ({
+    user: null,
+  }),
+  getters: {
+    isAuthenticated: (state) => !!state.user,
+  },
+  actions: {
+    async fetchUser(): Promise<void> {
+      // ...
+    },
+  },
+})
+```
+
+### Naming
+
+| Item | Convention | Example |
+|------|------------|---------|
+| File | camelCase or domain name | `permission.ts`, `loading.ts` |
+| Store ID (1st arg) | short kebab/camel string | `'auth'`, `'pageMenu'`, `'loading'` |
+| Composable export | `use{Name}Store` | `useAuthStore`, `useLoadingStore` |
+
+- One **primary concern** per file; related stores may share a file (e.g. page + device menus in `menu.ts`).
+- Define **state interfaces** above the store definition.
+
+## Auth Store (`permission.ts`)
+
+Central session store for the app:
+
+```ts
+export const useAuthStore = defineStore('auth', {
+  state: (): AuthState => ({ user: null }),
+  getters: {
+    isAuthenticated: (state) => !!state.user,
+  },
+  actions: {
+    async login(credentials: UserLoginRequest): Promise<void> { /* ... */ },
+    async logout(): Promise<void> { /* ... */ },
+    async fetchUser(): Promise<void> { /* ... */ },
+    async refreshToken(): Promise<void> { /* ... */ },
+    async initializeStore(): Promise<void> { /* ... */ },
+  },
+})
+```
+
+### Auth action rules
+
+- **`login`**: call auth mutation service → `fetchUser()` → sync `authState` → notify → navigate.
+- **`logout`**: call logout API if user exists; always clear `user` and `authState` in `finally`; redirect to login.
+- **`fetchUser`**: call `getCurrentUser` query; on failure clear user without calling `logout` (avoids loops).
+- **`refreshToken`**: on failure reset user and call `logout`.
+- **`initializeStore`**: called from auth plugin on app start — `fetchUser`, then `refreshToken` if user exists.
+
+Use **`useRouter()`** and **`useNotify()`** inside actions (valid in Pinia action context). Import DTOs and services from `~/services/REST_SERVICES/**`.
+
+### Auth state helper
+
+Pair the store with a lightweight **`~/utils/authState`** module for interceptors/middleware that must check auth before Pinia is fully hydrated:
+
+```ts
+authState.initialize()       // plugins/auth.ts
+authState.setAuthenticated(true | false)
+authState.isAuthenticated()
+authState.isInitialized()
+```
+
+Keep **`authState`** in sync whenever `user` changes in the store.
+
+## Menu Stores (`menu.ts`)
+
+Navigation data for layout sidebars:
+
+```ts
+interface MenuItem {
+  id?: number
+  name?: string
+  icon?: string
+  value?: string
+  route?: string
+  children?: MenuItem[]
+}
+
+export const usePageMenuStore = defineStore('pageMenu', {
+  state: (): PageMenuState => ({ menus: [] }),
+  actions: {
+    async getPageMenu(): Promise<void> { /* fetch + assign this.menus */ },
+    async initializeStore(): Promise<void> {
+      await this.getPageMenu()
+    },
+  },
+})
+
+export const useDeviceMenuStore = defineStore('deviceMenuStore', {
+  state: (): DeviceMenuState => ({ menus: [] }),
+  actions: {
+    async initializeStore(page = 1, pageSize = 50, imei: string | null = null): Promise<void> {
+      // fetch device menu by IMEI, assign this.menus
+    },
+  },
+})
+```
+
+- Initialize menus in **layout `onMounted`** via `initializeStore()`.
+- Device menu store accepts **route params** (IMEI) for context-specific nav links.
+- Log errors in actions; do not throw unless the caller must handle recovery.
+
+## Loading Store (`loading.ts`)
+
+Global HTTP loading indicator driven by axios interceptors:
+
+```ts
+export const useLoadingStore = defineStore('loading', {
+  state: () => ({
+    isLoading: false,
+  }),
+  actions: {
+    startLoading(): void {
+      this.isLoading = true
+    },
+    stopLoading(delay = 500): void {
+      setTimeout(() => {
+        this.isLoading = false
+      }, delay)
+    },
+  },
+})
+```
+
+- **`startLoading`** in request interceptor; **`stopLoading`** in response/error interceptors.
+- Optional delay on stop prevents flicker on fast requests.
+- Layouts bind UI (avatar placeholder, progress) to `loadingStore.isLoading`.
+
+## Actions Conventions
+
+1. Call **service functions** from `~/services/` — not raw axios in stores.
+2. Mutate state with **`this.property = value`** inside actions.
+3. Use **`try/catch`**; log errors with `console.error` and meaningful context.
+4. Avoid infinite loops: `fetchUser` failure must not trigger `logout` if `logout` triggers API calls that fail again.
+5. Add **JSDoc** to non-obvious actions (`initializeStore`, `refreshToken`).
+
+## Getters
+
+- Derive boolean flags from state (`isAuthenticated`, `hasMenus`).
+- Keep getters **pure** — no async work or side effects in getters.
+
+## Consumers
+
+| Consumer | Typical store |
+|----------|---------------|
+| `plugins/auth.ts` | `useAuthStore.initializeStore()` |
+| `middleware/user-only.ts`, `guest-only.ts` | `useAuthStore.fetchUser()` |
+| `services/REST_SERVICES/interceptors.ts` | `useLoadingStore`, `useAuthStore` |
+| `layouts/MainContent.vue`, `DeviceDetails.vue` | `useAuthStore`, menu stores, `useLoadingStore` |
+| `pages/auth/Login.vue` | `useAuthStore.login()`, `useLoadingStore` |
+
+Import via auto-import or alias:
+
+```ts
+import { useAuthStore } from '~/stores/permission'
+import { usePageMenuStore } from '~/stores/menu'
+import { useLoadingStore } from '~/stores/loading'
+```
+
+## What Not to Put in Stores
+
+- Paginated resource lists (agents, devices, commands) — use composables.
+- Form field state local to one page.
+- TanStack Query cache management.
+- REST endpoint definitions (use `services/`).
+- Component-specific UI toggles (dialog open, tab index).
+
+## Adding a New Store
+
+1. Create `app/stores/{name}.ts` with a typed state interface.
+2. Export `use{Name}Store` via `defineStore`.
+3. Add an **`initializeStore`** action if the plugin or layout must preload data.
+4. Call services for API access; keep actions focused on state + orchestration.
+5. Register initialization in the appropriate plugin or layout `onMounted`.
+6. Document which layers may read the store (middleware, interceptors, layouts only when global).
+
+## Module Setup
+
+Enable Pinia in `nuxt.config.ts`:
+
+```ts
+export default defineNuxtConfig({
+  modules: ['@pinia/nuxt'],
+})
+```
+
+Nuxt auto-imports stores from `app/stores/`; no manual registration per store file is required.

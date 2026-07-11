@@ -1,0 +1,226 @@
+---
+description: Rules and conventions for Nuxt layouts
+globs: app/layouts/**/*
+alwaysApply: false
+---
+
+# Layouts
+
+Rules for files under `app/layouts/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Layouts define the **persistent app shell** (navigation, header, sidebar, theme/locale controls). Page content renders inside the layout via `<slot />` or `<NuxtPage />`.
+
+Keep layouts focused on chrome and shared UI — not page-specific business logic or data tables.
+
+## Layout Files
+
+| File | Nuxt name | Role |
+|------|-----------|------|
+| `default.vue` | `default` | Minimal passthrough wrapper |
+| `MainContent.vue` | `main-content` | Authenticated app shell (sidebar + app bar) |
+| `AuthLayout.vue` | `auth-layout` | Public/auth shell (app bar only, no sidebar) |
+| `DeviceDetails.vue` | `device-details` | Context-specific shell (e.g. detail sidebar with dynamic param) |
+
+- Nuxt maps **PascalCase filenames** to **kebab-case** layout names (`MainContent.vue` → `main-content`).
+- Prefer **PascalCase** filenames for named layouts; reserve `default.vue` for the root passthrough layout.
+
+## Root App Entry
+
+`app.vue` wraps the entire app in the default layout slot:
+
+```vue
+<template>
+  <NuxtLayout>
+    <NuxtPage />
+  </NuxtLayout>
+</template>
+```
+
+Global providers (notifications, head templates) belong in `app.vue`, not in individual layouts.
+
+## Default Layout (Passthrough)
+
+`default.vue` is a thin wrapper used when parent pages need nested named layouts:
+
+```vue
+<template>
+  <slot />
+</template>
+
+<script setup lang="ts"></script>
+```
+
+Parent route wrappers set `layout: 'default'` in `definePageMeta` and compose a **nested** named layout inside their template.
+
+## Nested Layout Composition
+
+Section parent pages (e.g. `agents.vue`, `dashboard.vue`) combine `default` + a named layout:
+
+```vue
+<template>
+  <NuxtLayout name="main-content">
+    <NuxtPage />
+  </NuxtLayout>
+</template>
+
+<script setup lang="ts">
+definePageMeta({
+  layout: 'default',
+  middleware: ['user-only'],
+})
+</script>
+```
+
+Flow:
+
+1. `app.vue` → `NuxtLayout` (default)
+2. Parent page → `NuxtLayout name="main-content"` → child page content
+
+## Dynamic Layout Selection
+
+When a route section needs different shells (list vs detail), pick the layout in the parent wrapper:
+
+```vue
+<template>
+  <NuxtLayout :name="currentLayout">
+    <NuxtPage />
+  </NuxtLayout>
+</template>
+
+<script setup lang="ts">
+const route = useRoute()
+
+const currentLayout = computed(() =>
+  route.path.startsWith('/devices/details') ? 'device-details' : 'main-content',
+)
+
+definePageMeta({
+  layout: 'default',
+  middleware: ['user-only'],
+})
+</script>
+```
+
+- Use a **computed** layout name driven by `route.path` or route meta.
+- Keep switching logic in the parent wrapper, not in leaf pages.
+
+## Named Layout Structure
+
+Authenticated shells (`main-content`, `device-details`) share a common structure:
+
+```vue
+<template>
+  <v-theme-provider>
+    <div :dir="currentLocale === 'fa' ? 'rtl' : 'ltr'">
+      <v-app>
+        <v-navigation-drawer><!-- sidebar nav --></v-navigation-drawer>
+        <v-app-bar><!-- title, locale, theme --></v-app-bar>
+        <v-main>
+          <NuxtPage />
+        </v-main>
+      </v-app>
+    </div>
+  </v-theme-provider>
+</template>
+```
+
+### Sidebar navigation
+
+- Load menu items from a **Pinia store** (e.g. `usePageMenuStore`, `useDeviceMenuStore`).
+- Initialize menus in `onMounted` via `store.initializeStore()`.
+- Use `:router="true"` and `:to="item.route"` for nav links.
+- For context layouts, append route params to paths (e.g. `child.route + '/' + route.params.imei`).
+- Support nested menus with grouped list items when the store provides `children`.
+
+### App bar
+
+- Collapse/expand sidebar (rail mode).
+- App title via i18n (`$vuetify.locale.t('appName')`).
+- Locale toggle (persist to `localStorage`).
+- Theme toggle (persist via `StorageService` or equivalent; fall back to `prefers-color-scheme`).
+
+### User section
+
+- Show user avatar, name, and username from `useAuthStore`.
+- Show loading placeholder while `useLoadingStore().isLoading`.
+- Logout button calls `authStore.logout()` with loading state.
+
+## Auth Layout
+
+`auth-layout` is a **minimal** shell for login/register pages:
+
+- App bar with locale and theme toggles only.
+- No sidebar or user menu.
+- `<NuxtPage />` in `v-main` for auth page content.
+
+Used from the auth parent wrapper:
+
+```vue
+<template>
+  <NuxtLayout name="auth-layout">
+    <NuxtPage />
+  </NuxtLayout>
+</template>
+```
+
+## Script Setup Conventions
+
+- Use a **single** `<script setup lang="ts">` block per layout file.
+- Typical imports: Vue lifecycle, theme/locale composables, auth/menu/loading stores, `StorageService`.
+- Initialize locale and theme in `onMounted` from persisted preferences.
+- Shared handlers: `toggleTheme`, `toggleLanguage`, `handleLogout`.
+
+```ts
+onMounted(async () => {
+  const savedLocale = localStorage.getItem('locale')
+  if (savedLocale) {
+    currentLocale.value = savedLocale
+  }
+
+  const currentTheme =
+    StorageService.getItem('theme') ??
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  theme.global.name.value = currentTheme
+
+  await pageMenuStore.initializeStore()
+})
+```
+
+## RTL / i18n
+
+- Set `dir` on the root wrapper based on locale (`rtl` for `fa`, `ltr` otherwise).
+- Nav labels and titles use i18n keys (e.g. `pages.menus.{value}.title`).
+
+## Context-Specific Layouts
+
+Create a dedicated layout when a route subtree needs:
+
+- Different sidebar menus (e.g. device detail tabs).
+- Route param shown in the app bar (e.g. IMEI in title).
+- Store initialization that depends on route params.
+
+Example: `DeviceDetails.vue` initializes `deviceMenuStore` with `route.params.imei` and builds nav links with that param appended.
+
+## What Belongs in Layouts
+
+- App chrome: nav, header, footer, drawers.
+- Global toggles: theme, locale, logout.
+- Menu initialization from stores.
+- `<NuxtPage />` or `<slot />` for child content.
+
+## What Not to Put in Layouts
+
+- Page-specific forms, tables, or API fetch logic.
+- Feature business rules unrelated to navigation/chrome.
+- Duplicate `<script setup>` blocks in one file.
+- Heavy data loading for page content (belongs in pages/composables).
+
+## Adding a New Layout
+
+1. Create `app/layouts/MyLayout.vue`.
+2. Reference it as `name="my-layout"` in parent route wrappers.
+3. Set `definePageMeta({ layout: 'default' })` on the wrapper when nesting under default.
+4. Reuse shared shell patterns (app bar, theme/locale, logout) for consistency.
+5. Extract repeated sidebar/header fragments into components if multiple layouts share them.

@@ -1,0 +1,145 @@
+---
+description: Rules and conventions for Nuxt route middleware
+globs: app/middleware/**/*
+alwaysApply: false
+---
+
+# Middleware
+
+Rules for files under `app/middleware/`. Follow global rules in `global.mdc` for TypeScript, JSDoc, and formatting.
+
+## Purpose
+
+Route middleware runs before navigation. Use it for **access control**, session checks, and redirects — not for data fetching or UI logic.
+
+## File Naming
+
+- One middleware per file in `app/middleware/`.
+- Use **kebab-case** filenames; Nuxt registers them by filename (without extension).
+- Examples: `user-only.ts`, `guest-only.ts`, `admin-only.ts`.
+
+```ts
+// app/middleware/user-only.ts → middleware: ['user-only']
+```
+
+## Middleware Structure
+
+Export a default handler with `defineNuxtRouteMiddleware`:
+
+```ts
+import { defineNuxtRouteMiddleware, navigateTo } from '#app'
+import { useAuthStore } from '~/stores/permission'
+
+/**
+ * Restricts access to authenticated users only.
+ *
+ * @param to - Target route
+ * @param from - Source route
+ * @returns Redirect to login when unauthenticated
+ */
+export default defineNuxtRouteMiddleware(async (to, from) => {
+  const authStore = useAuthStore()
+
+  if (authStore.user) {
+    return
+  }
+
+  try {
+    await authStore.fetchUser()
+    if (!authStore.user) {
+      return navigateTo('/auth/login')
+    }
+  } catch (error) {
+    console.error('Failed to fetch user in user middleware:', error)
+    return navigateTo('/auth/login')
+  }
+})
+```
+
+## Auth Middleware Patterns
+
+### `user-only` — protected routes
+
+- Allow navigation if `authStore.user` is already set.
+- Otherwise call `authStore.fetchUser()` to restore session.
+- Redirect to `/auth/login` if still unauthenticated or fetch fails.
+
+### `guest-only` — public/auth routes
+
+- If `authStore.user` exists, redirect to `/dashboard` (or app home).
+- Optionally attempt `fetchUser()` when not on the login page to catch existing sessions.
+- On fetch failure, **stay on the current page** (do not redirect away from login).
+
+```ts
+export default defineNuxtRouteMiddleware(async (to, from) => {
+  const authStore = useAuthStore()
+
+  if (authStore.user) {
+    return navigateTo('/dashboard')
+  }
+
+  if (to.path !== '/auth/login') {
+    try {
+      await authStore.fetchUser()
+      if (authStore.user) {
+        return navigateTo('/dashboard')
+      }
+    } catch (error) {
+      console.error('Failed to fetch user in guest middleware:', error)
+    }
+  }
+})
+```
+
+## Applying Middleware
+
+Set middleware on **parent route wrappers** so all child pages inherit it:
+
+```ts
+definePageMeta({
+  layout: 'default',
+  middleware: ['user-only'],
+})
+```
+
+| Middleware | Use on | Effect |
+|------------|--------|--------|
+| `user-only` | Dashboard, agents, devices, commands wrappers | Blocks unauthenticated users |
+| `guest-only` | Login and other public auth pages | Redirects authenticated users away |
+
+- Apply `user-only` on section parents (`dashboard.vue`, `agents.vue`), not every leaf page.
+- Apply `guest-only` on individual auth pages (e.g. `auth/Login.vue`).
+
+## Redirects
+
+- Use `navigateTo('/path')` from `#app` for redirects inside middleware.
+- Use consistent paths: `/auth/login` for unauthenticated, `/dashboard` for authenticated default.
+- Return the result of `navigateTo()` to abort the current navigation.
+
+## Dependencies
+
+- Read auth state from a **Pinia store** (e.g. `useAuthStore` in `~/stores/permission`).
+- Delegate user resolution to store actions (`fetchUser()`), not direct API calls in middleware.
+- Keep middleware thin: check state → fetch if needed → redirect or allow.
+
+## Error Handling
+
+- Log errors with `console.error` and a clear middleware name in the message.
+- **user-only**: treat fetch failure as unauthenticated → redirect to login.
+- **guest-only**: treat fetch failure as guest → allow access to public pages.
+- Never call `logout()` from middleware (avoids redirect loops).
+
+## What Not to Put in Middleware
+
+- Form validation, notifications, or UI side effects.
+- Heavy data loading for page content (use composables in pages instead).
+- Business rules unrelated to route access (use route-specific middleware or page logic).
+
+## Adding New Middleware
+
+When adding role- or feature-based guards (e.g. `admin-only`):
+
+1. Create `app/middleware/admin-only.ts`.
+2. Reuse the same structure: read store → validate → `navigateTo` on failure.
+3. Register on the narrowest parent route that needs the guard.
+4. Document redirect targets and required store getters/actions.
