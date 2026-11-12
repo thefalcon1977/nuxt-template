@@ -1,0 +1,37 @@
+@use '../base/variables' as *;
+
+.rtl {
+  direction: rtl !important;
+}
+
+.ltr {
+  direction: ltr !important;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.text-primary {
+  color: $primary !important;
+}
+
+.text-secondary {
+  color: $secondary !important;
+}
+
+.text-danger {
+  color: $negative !important;
+}
+
+.text-success {
+  color: $positive !important;
+}
+
+.bg-primary {
+  background-color: $primary !important;
+}
+
+.bg-secondary {
+  background-color: $secondary !important;
+}
