@@ -172,6 +172,7 @@ export function myFunction(param1: string): ResultType {
 | Commit `yarn.lock` | Commit `.env` or `node_modules/` |
 | JSDoc on exports | A second `<script setup>` in one file |
 | Keep empty layers as `.gitkeep` | Add unused libraries or feature folders |
+| Update `README.md` when the flow changes | Leave the README describing a previous architecture |
 
 ## Adding a Feature
 
@@ -182,6 +183,18 @@ export function myFunction(param1: string): ResultType {
 5. **Components** — extract UI that more than one page uses.
 6. **Store** — only for global state. Install Pinia at that point.
 7. **Env** — new keys in `.env.example` and `nuxt.config.ts` `runtimeConfig`.
+8. **README** — if this change alters the flow, update `README.md` in the same change.
+
+## README stays in sync
+
+`README.md` is the public map of this starter. Update it in the same change when the flow changes:
+
+- Layer order or the data-flow path (pages, composables, services, stores)
+- The `app/` or `i18n/` tree shown in the README
+- Stack, scripts, i18n locales, or the style-layer entry
+- How the home page, layout, or language switch behaves
+
+Match the README to the code. Do not document libraries, routes, or locales that are not in the repo.
 
 ## Agent Notes
 
@@ -190,3 +203,4 @@ export function myFunction(param1: string): ResultType {
 - Minimize the diff. Do not refactor unrelated files.
 - Run scripts with **Yarn**.
 - Do not create commits unless the user asks.
+- If you change the flow, update `README.md` before finishing.

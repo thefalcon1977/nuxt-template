@@ -8,6 +8,8 @@ A Nuxt 4 starter for production Vue 3 apps with TypeScript, Yarn Classic, and a 
 | --------------- | ------------------------------------------------------- |
 | Framework       | [Nuxt 4](https://nuxt.com) + [Vue 3](https://vuejs.org) |
 | Language        | TypeScript                                              |
+| Router          | Vue Router 5                                            |
+| i18n            | [@nuxtjs/i18n](https://i18n.nuxtjs.org) (English only)  |
 | Package manager | Yarn Classic 1.22.22                                    |
 | Linting         | ESLint (`@nuxt/eslint`)                                 |
 | Formatting      | Prettier                                                |
@@ -50,6 +52,9 @@ yarn install
 ## Project structure
 
 ```
+i18n/
+└── locales/
+    └── en.ts                    # English messages
 app/
 ├── app.vue                      # NuxtLayout + NuxtPage
 ├── app.config.ts                # App-level config
@@ -59,7 +64,7 @@ app/
 │   ├── icons/
 │   └── img/
 ├── components/                  # Shared UI (empty until reused)
-├── layouts/default.vue          # Passthrough shell
+├── layouts/default.vue          # Shell with the language switch
 ├── middleware/                  # Route guards
 ├── pages/index.vue              # Home page
 ├── plugins/                     # App bootstrap
@@ -122,6 +127,19 @@ export default defineNuxtConfig({
 
 New partials use a `_` prefix and are registered from that layer's `index.scss`.
 
+## Internationalization
+
+Copy lives in `i18n/locales/`. English (`en.ts`) is the only locale. The default layout renders a language `<select>` and switches with `setLocale`.
+
+| Setting           | Value                                       |
+| ----------------- | ------------------------------------------- |
+| Module            | `@nuxtjs/i18n`                              |
+| Default locale    | `en`                                        |
+| URL strategy      | `no_prefix` (the locale is not in the path) |
+| Browser detection | Off                                         |
+
+Pages use `$t('home.title')`. Add a language by creating `i18n/locales/{code}.ts` with the same keys and registering it in `nuxt.config.ts` (`code`, `language`, `name`, `dir`, `file`).
+
 ## Tooling
 
 ### Pre-commit
@@ -151,7 +169,7 @@ On every push, GitHub Actions runs:
 yarn dev
 ```
 
-Open http://localhost:3000. The home page is `app/pages/index.vue`, rendered through `app/layouts/default.vue`.
+Open http://localhost:3000. The home page is `app/pages/index.vue`, inside `app/layouts/default.vue`. Use the language control in the header. Only English is available.
 
 ## Production
 
