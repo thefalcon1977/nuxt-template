@@ -1067,6 +1067,16 @@
   dependencies:
     "@tybys/wasm-util" "^0.10.3"
 
+"@noble/ciphers@^2.2.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@noble/ciphers/-/ciphers-2.4.0.tgz#04cf9e0f1cd3d521e8e5ca92dc0c02238180f676"
+  integrity sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==
+
+"@noble/hashes@^2.2.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@noble/hashes/-/hashes-2.4.0.tgz#e6a3e98edbed3c8659b28bb8f9b18ca02ec8ea4b"
+  integrity sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==
+
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
   resolved "https://registry.yarnpkg.com/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz#7619c2eb21b25483f6d167548b4cfd5a7488c3d5"
@@ -4247,6 +4257,14 @@ encodeurl@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/encodeurl/-/encodeurl-2.0.0.tgz#7b8ea898077d7e409d3ac45474ea38eaf0857a58"
   integrity sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==
+
+encrypt-storage@^3.0.4:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/encrypt-storage/-/encrypt-storage-3.0.4.tgz#f9cafe26f9f15605ba8616cd78130f9cc930cae7"
+  integrity sha512-WfhOhTiEOqNXVsLRBIAKpJ/BtfqdiPegZ/aIpp8Dd3l9CbgSMEW8VI2Nuc0+1kakYETxC+MC4F5KbtJyPOO1bw==
+  dependencies:
+    "@noble/ciphers" "^2.2.0"
+    "@noble/hashes" "^2.2.0"
 
 entities@^4.2.0:
   version "4.5.0"

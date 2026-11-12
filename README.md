@@ -40,16 +40,16 @@ Copy the env template and edit local values:
 cp .env.example .env
 ```
 
-| Variable              | Used for                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `MODE`                | App mode (`runtimeConfig.public.mode`: `development` or `production`)                                               |
-| `API_BASE_URL`        | Public API base URL (`runtimeConfig.public.apiBaseUrl`)                                                             |
-| `THEME`               | Default theme (`light`, `dark`, or `custom`). A `theme` cookie overrides it after the visitor picks one             |
-| `LOCALE`              | Default i18n locale (`en`)                                                                                          |
-| `ENCRYPT_STORAGE_KEY` | Encryption key for `StorageService` in `services/STORAGE/localStorage.ts`. Not a `runtimeConfig` value              |
-| `VERSION`             | App version (`runtimeConfig.public.version`, default `1.0.0`). `GET /json/version` returns `{ "version": "1.0.0" }` |
+| Variable              | Used for                                                                                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MODE`                | App mode (`runtimeConfig.public.mode`: `development` or `production`)                                                                                    |
+| `API_BASE_URL`        | Public API base URL (`runtimeConfig.public.apiBaseUrl`)                                                                                                  |
+| `THEME`               | Default theme (`light`, `dark`, or `custom`). A `theme` cookie overrides it after the visitor picks one                                                  |
+| `LOCALE`              | Default i18n locale (`en`)                                                                                                                               |
+| `ENCRYPT_STORAGE_KEY` | Encryption key (`runtimeConfig.public.encryptStorageKey`) for `StorageService` and encrypted `CookieService` names/values. Quote values that contain `#` |
+| `VERSION`             | App version (`runtimeConfig.public.version`, default `1.0.0`). `GET /json/version` returns `{ "version": "1.0.0" }`                                      |
 
-Read public values with `useRuntimeConfig().public` in app code. `ENCRYPT_STORAGE_KEY` is only for `StorageService`. Restart `yarn dev` after changing `.env`.
+Read public values with `useRuntimeConfig().public` in app code. Restart `yarn dev` after changing `.env`.
 
 ## Scripts
 
@@ -74,8 +74,9 @@ i18n/
     └── en.ts                    # English messages
 services/
 ├── STORAGE/
+│   ├── encryptClient.ts         # Shared encrypt-storage client from ENCRYPT_STORAGE_KEY
 │   ├── localStorage.ts          # StorageService: encrypted local storage
-│   └── cookie.ts                # CookieService: browser cookie helpers
+│   └── cookie.ts                # CookieService: hashed names + encrypted values
 └── REST_SERVICES/
     ├── routes/                  # URL constants
     ├── queries/                 # GET
@@ -117,8 +118,8 @@ pages / layouts / components
 
 - **Pages** orchestrate UI and call composables.
 - **Services** own paths, HTTP calls, DTOs, and encrypted local storage.
-- **`StorageService`** (`services/STORAGE/localStorage.ts`) keeps one encrypted object in the browser. Call `setItem`, `getItem`, and `removeItem`. Its key is `ENCRYPT_STORAGE_KEY` from `.env.example`.
-- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Theme persistence in `useTheme()` goes through it. Do not use `useCookie` or `document.cookie`.
+- **`StorageService`** (`services/STORAGE/localStorage.ts`) keeps one encrypted object in the browser. Call `setItem`, `getItem`, and `removeItem`.
+- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Cookie names are hashed and values are encrypted with `ENCRYPT_STORAGE_KEY`. Theme persistence in `useTheme()` goes through it. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** hold session-wide state only (auth, menus, loading).
 - **Utils** stay pure and stateless.

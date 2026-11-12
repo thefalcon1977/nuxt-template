@@ -15,8 +15,9 @@ Root `services/` is the real services layer. `app/services/REST_SERVICES/` is an
 ```
 services/
 ├── STORAGE/
-│   ├── localStorage.ts  # StorageService (ENCRYPT_STORAGE_KEY)
-│   └── cookie.ts        # CookieService: setItem, getItem, removeItem, getAll, clear
+│   ├── encryptClient.ts # Shared encrypt-storage client (ENCRYPT_STORAGE_KEY)
+│   ├── localStorage.ts  # StorageService
+│   └── cookie.ts        # CookieService: hashed names + encrypted values
 └── REST_SERVICES/
     ├── routes/
     ├── queries/
@@ -32,8 +33,9 @@ Add REST files under `services/REST_SERVICES/` when a feature calls an API. Put 
 
 | Path | Holds |
 |------|--------|
+| `STORAGE/encryptClient.ts` | Shared `encrypt-storage` client from `ENCRYPT_STORAGE_KEY` |
 | `STORAGE/localStorage.ts` | Encrypted browser storage (`StorageService`) |
-| `STORAGE/cookie.ts` | Browser cookies (`CookieService`) |
+| `STORAGE/cookie.ts` | Encrypted browser cookies (`CookieService`) |
 | `REST_SERVICES/routes/` | Path constants only |
 | `REST_SERVICES/queries/` | GET functions |
 | `REST_SERVICES/mutations/` | POST, PUT, PATCH, DELETE functions |
@@ -46,8 +48,10 @@ Add `interceptors.ts` beside the REST folders only after an HTTP plugin exists.
 
 - Use `StorageService` from `services/STORAGE/localStorage.ts` for app data in the browser.
 - Do not call raw `localStorage` for app data.
-- The encryption key is `ENCRYPT_STORAGE_KEY` from `.env` / `.env.example`.
+- The encryption key is `ENCRYPT_STORAGE_KEY` → `runtimeConfig.public.encryptStorageKey` (min 10 characters).
+- Read it only through `getEncryptClient()` / `useRuntimeConfig()`, never hardcode it in services.
 - **Every cookie read or write must go through `CookieService`** in `services/STORAGE/cookie.ts`.
+- CookieService hashes cookie names and encrypts cookie values with that key.
 - Allowed API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`.
 - Do **not** use `useCookie`, `document.cookie`, `cookie-es`, or `h3` `getCookie` / `setCookie` / `deleteCookie` in app code.
 - On the server, pass the request `Cookie` header into `getItem` / `getAll` for SSR reads: `CookieService.getItem(name, useRequestHeaders(['cookie']).cookie)`.

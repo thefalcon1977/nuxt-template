@@ -33,8 +33,9 @@ Each layer has one job. Do not skip layers once they exist (for example, a page 
 ```
 services/
 ├── STORAGE/
+│   ├── encryptClient.ts    # Shared encrypt-storage client (ENCRYPT_STORAGE_KEY)
 │   ├── localStorage.ts     # StorageService: encrypted local storage
-│   └── cookie.ts           # CookieService: browser cookie helpers
+│   └── cookie.ts           # CookieService: hashed names + encrypted values
 └── REST_SERVICES/          # routes, queries, mutations, dto
 app/
 ├── app.vue                 # Root shell: NuxtLayout + NuxtPage
@@ -75,7 +76,7 @@ plugins / middleware
 - **Pages** orchestrate UI. Fetch through **composables** once those exist.
 - **Services** own URLs, HTTP calls, DTOs, and browser storage under `services/STORAGE/`.
 - **`StorageService`** (`services/STORAGE/localStorage.ts`) is the encrypted local storage API.
-- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`. Do not use `useCookie` or `document.cookie`.
+- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`. Names are hashed and values encrypted with `ENCRYPT_STORAGE_KEY`. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** own session-wide state only (auth, menus, loading).
 - **Utils** are pure and stateless.
@@ -86,8 +87,9 @@ plugins / middleware
 ```
 services/
 ├── STORAGE/
-│   ├── localStorage.ts  # StorageService (ENCRYPT_STORAGE_KEY)
-│   └── cookie.ts        # CookieService
+│   ├── encryptClient.ts # ENCRYPT_STORAGE_KEY client
+│   ├── localStorage.ts  # StorageService
+│   └── cookie.ts        # CookieService (hashed names + encrypted values)
 └── REST_SERVICES/
     ├── routes/      # URL constants
     ├── queries/     # GET

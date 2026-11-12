@@ -1,8 +1,8 @@
-import { EncryptStorage } from 'encrypt-storage'
-
-const encryptStorage = new EncryptStorage('2kBDmd81#TW%', {})
+import { getEncryptClient } from './encryptClient'
 
 type StorageRecord = Record<string, unknown>
+
+const STORAGE_KEY = 'storage'
 
 /**
  * Reads the encrypted storage object, creating it when it is missing.
@@ -10,11 +10,12 @@ type StorageRecord = Record<string, unknown>
  * @returns The stored record
  */
 function readStorage(): StorageRecord {
-  const stored = encryptStorage.getItem('storage') as StorageRecord | undefined
+  const encryptStorage = getEncryptClient()
+  const stored = encryptStorage.getItem<StorageRecord>(STORAGE_KEY)
 
-  if (stored === undefined) {
+  if (stored === null || stored === undefined) {
     const empty: StorageRecord = {}
-    encryptStorage.setItem('storage', empty)
+    encryptStorage.setItem(STORAGE_KEY, empty)
     return empty
   }
 
@@ -30,7 +31,7 @@ function readStorage(): StorageRecord {
 function setItem(key: string, value: unknown): void {
   const storage = readStorage()
   storage[key] = value
-  encryptStorage.setItem('storage', storage)
+  getEncryptClient().setItem(STORAGE_KEY, storage)
 }
 
 /**
@@ -60,12 +61,13 @@ function removeItem(key: string): null {
   const storage = readStorage()
   const next = Object.fromEntries(Object.entries(storage).filter(([entryKey]) => entryKey !== key))
 
-  encryptStorage.setItem('storage', next)
+  getEncryptClient().setItem(STORAGE_KEY, next)
   return null
 }
 
 /**
  * Encrypted browser storage. Values live in one object under the `storage` key.
+ * Uses `ENCRYPT_STORAGE_KEY` from the environment.
  */
 export const StorageService = {
   setItem,

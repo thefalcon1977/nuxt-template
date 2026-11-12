@@ -1,3 +1,5 @@
+import { getEncryptClient } from './encryptClient'
+
 /**
  * Options for writing or clearing a browser cookie.
  */
@@ -98,11 +100,51 @@ function parseCookies(source: string): Record<string, string> {
 }
 
 /**
- * Writes a cookie in the browser.
- * No-ops on the server. Prefer calling this from client-side user actions.
+ * Turns a logical cookie name into the encrypted storage key.
  *
- * @param name - Cookie name
- * @param value - Cookie value
+ * @param name - Logical cookie name
+ * @returns Hashed cookie name
+ */
+function encryptCookieName(name: string): string {
+  return getEncryptClient().hash(name)
+}
+
+/**
+ * Encrypts a cookie value with `ENCRYPT_STORAGE_KEY`.
+ *
+ * @param value - Plain cookie value
+ * @returns Encrypted cookie value
+ */
+function encryptCookieValue(value: string): string {
+  return getEncryptClient().encryptValue(value)
+}
+
+/**
+ * Decrypts a cookie value with `ENCRYPT_STORAGE_KEY`.
+ *
+ * @param value - Encrypted cookie value
+ * @returns Plain cookie value, or null when decryption fails
+ */
+function decryptCookieValue(value: string): string | null {
+  try {
+    const decrypted = getEncryptClient().decryptValue<unknown>(value)
+
+    if (decrypted === null || decrypted === undefined) {
+      return null
+    }
+
+    return typeof decrypted === 'string' ? decrypted : String(decrypted)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Writes an encrypted cookie in the browser.
+ * The cookie name is hashed and the value is encrypted with `ENCRYPT_STORAGE_KEY`.
+ *
+ * @param name - Logical cookie name
+ * @param value - Plain cookie value
  * @param options - Optional path, domain, maxAge, expires, secure, and sameSite
  */
 function setItem(name: string, value: string, options: CookieOptions = {}): void {
@@ -110,19 +152,19 @@ function setItem(name: string, value: string, options: CookieOptions = {}): void
     return
   }
 
-  const encodedName = encodeURIComponent(name)
-  const encodedValue = encodeURIComponent(value)
+  const encodedName = encodeURIComponent(encryptCookieName(name))
+  const encodedValue = encodeURIComponent(encryptCookieValue(value))
 
   document.cookie = `${encodedName}=${encodedValue}; ${serializeAttributes(options)}`
 }
 
 /**
- * Reads one cookie by name.
+ * Reads and decrypts one cookie by logical name.
  * Pass the request `Cookie` header on the server so SSR can read the same value.
  *
- * @param name - Cookie name
+ * @param name - Logical cookie name
  * @param cookieHeader - Optional raw `Cookie` request header for SSR
- * @returns The cookie value, or null when missing
+ * @returns The plain cookie value, or null when missing
  */
 function getItem(name: string, cookieHeader?: string): string | null {
   const source = resolveCookieSource(cookieHeader)
@@ -132,15 +174,19 @@ function getItem(name: string, cookieHeader?: string): string | null {
   }
 
   const cookies = parseCookies(source)
-  const value = cookies[name]
+  const encryptedValue = cookies[encryptCookieName(name)]
 
-  return value === undefined ? null : value
+  if (encryptedValue === undefined || encryptedValue === '') {
+    return null
+  }
+
+  return decryptCookieValue(encryptedValue)
 }
 
 /**
- * Removes one cookie by name.
+ * Removes one encrypted cookie by logical name.
  *
- * @param name - Cookie name
+ * @param name - Logical cookie name
  * @param options - Optional path and domain that match the original cookie
  * @returns Null after the cookie is cleared
  */
@@ -149,20 +195,23 @@ function removeItem(name: string, options: Pick<CookieOptions, 'path' | 'domain'
     return null
   }
 
-  setItem(name, '', {
+  const encodedName = encodeURIComponent(encryptCookieName(name))
+
+  document.cookie = `${encodedName}=; ${serializeAttributes({
     ...options,
     maxAge: 0,
     expires: new Date(0),
-  })
+  })}`
 
   return null
 }
 
 /**
- * Reads every cookie currently available.
+ * Reads every cookie and decrypts values that were written by CookieService.
+ * Keys in the result are the hashed cookie names.
  *
  * @param cookieHeader - Optional raw `Cookie` request header for SSR
- * @returns A name-to-value map of cookies
+ * @returns A hashed-name-to-plain-value map
  */
 function getAll(cookieHeader?: string): Record<string, string> {
   const source = resolveCookieSource(cookieHeader)
@@ -171,7 +220,18 @@ function getAll(cookieHeader?: string): Record<string, string> {
     return {}
   }
 
-  return parseCookies(source)
+  const cookies = parseCookies(source)
+  const result: Record<string, string> = {}
+
+  for (const [hashedName, encryptedValue] of Object.entries(cookies)) {
+    const decrypted = decryptCookieValue(encryptedValue)
+
+    if (decrypted !== null) {
+      result[hashedName] = decrypted
+    }
+  }
+
+  return result
 }
 
 /**
@@ -180,15 +240,24 @@ function getAll(cookieHeader?: string): Record<string, string> {
  * @param options - Optional path and domain that match the cookies to clear
  */
 function clear(options: Pick<CookieOptions, 'path' | 'domain'> = {}): void {
-  const cookies = getAll()
+  if (!isBrowser() || !document.cookie) {
+    return
+  }
 
-  for (const name of Object.keys(cookies)) {
-    removeItem(name, options)
+  const cookies = parseCookies(document.cookie)
+
+  for (const hashedName of Object.keys(cookies)) {
+    document.cookie = `${encodeURIComponent(hashedName)}=; ${serializeAttributes({
+      ...options,
+      maxAge: 0,
+      expires: new Date(0),
+    })}`
   }
 }
 
 /**
- * Browser cookie helpers for insert, read, delete, and bulk management.
+ * Encrypted browser cookie helpers for insert, read, delete, and bulk management.
+ * Cookie names are hashed and values are encrypted with `ENCRYPT_STORAGE_KEY`.
  * App code must use this service for every cookie read or write.
  */
 export const CookieService = {

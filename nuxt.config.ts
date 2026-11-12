@@ -4,6 +4,7 @@ const theme = process.env.THEME ?? 'light'
 const apiBaseUrl = process.env.API_BASE_URL ?? ''
 const version = process.env.VERSION ?? '1.0.0'
 const mode = process.env.MODE === 'production' ? 'production' : 'development'
+const encryptStorageKey = process.env.ENCRYPT_STORAGE_KEY ?? ''
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -24,8 +25,10 @@ export default defineNuxtConfig({
       locale,
       version,
       mode,
+      encryptStorageKey,
     },
   },
+
   i18n: {
     locales: [
       {
