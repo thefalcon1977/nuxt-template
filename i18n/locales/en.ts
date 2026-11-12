@@ -6,4 +6,10 @@ export default {
   language: {
     label: 'Language',
   },
+  theme: {
+    label: 'Theme',
+    light: 'Light',
+    dark: 'Dark',
+    custom: 'Custom',
+  },
 }

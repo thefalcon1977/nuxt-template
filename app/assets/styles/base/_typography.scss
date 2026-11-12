@@ -1,7 +1,4 @@
-@use 'variables' as *;
-
 body {
-  color: $text-color;
   font-family:
     system-ui,
     -apple-system,
@@ -16,6 +13,6 @@ h3,
 h4,
 h5,
 h6 {
-  color: $dark;
+  color: var(--color-heading);
   line-height: 1.25;
 }

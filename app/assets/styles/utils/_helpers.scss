@@ -1,5 +1,3 @@
-@use '../base/variables' as *;
-
 .rtl {
   direction: rtl !important;
 }
@@ -13,25 +11,25 @@
 }
 
 .text-primary {
-  color: $primary !important;
+  color: var(--color-primary) !important;
 }
 
 .text-secondary {
-  color: $secondary !important;
+  color: var(--color-secondary) !important;
 }
 
 .text-danger {
-  color: $negative !important;
+  color: var(--color-negative) !important;
 }
 
 .text-success {
-  color: $positive !important;
+  color: var(--color-positive) !important;
 }
 
 .bg-primary {
-  background-color: $primary !important;
+  background-color: var(--color-primary) !important;
 }
 
 .bg-secondary {
-  background-color: $secondary !important;
+  background-color: var(--color-secondary) !important;
 }

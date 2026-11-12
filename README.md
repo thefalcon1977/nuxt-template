@@ -64,7 +64,8 @@ app/
 │   ├── icons/
 │   └── img/
 ├── components/                  # Shared UI (empty until reused)
-├── layouts/default.vue          # Shell with the language switch
+├── composables/useTheme.ts      # Theme cookie and document attribute
+├── layouts/default.vue          # Shell with language and theme switches
 ├── middleware/                  # Route guards
 ├── pages/index.vue              # Home page
 ├── plugins/                     # App bootstrap
@@ -75,10 +76,10 @@ app/
 │   └── dto/                     # Request and response types
 ├── stores/                      # Global state only
 ├── types/
-└── utils/
+└── utils/theme.ts               # Theme names and cookie key
 ```
 
-Empty folders stay in git with `.gitkeep`. Create `app/composables/` when the first shared reactive function is needed.
+Empty folders stay in git with `.gitkeep`. Add the next composable under `app/composables/` when another feature needs shared reactive logic.
 
 ### Data flow
 
@@ -106,26 +107,26 @@ pages / layouts / components
 
 | Layer         | Starter                                               |
 | ------------- | ----------------------------------------------------- |
-| `base/`       | Tokens, typography, containers, reset, fade animation |
+| `base/`       | Tokens, theme palettes, typography, containers, reset |
 | `utils/`      | Mixins and helper classes                             |
 | `layouts/`    | `.app-shell`                                          |
 | `components/` | `.btn`                                                |
 | `pages/`      | `.page-wrapper`                                       |
 | `vendors/`    | Place for third-party overrides                       |
 
-Styles are not loaded yet. Install Sass, then add the entry in `nuxt.config.ts`:
+New partials use a `_` prefix and are registered from that layer's `index.scss`. Global styles load from `nuxt.config.ts` via `css: ['~/assets/styles/app.scss']`.
 
-```bash
-yarn add -D sass
-```
+## Themes
 
-```ts
-export default defineNuxtConfig({
-  css: ['~/assets/styles/app.scss'],
-})
-```
+The header theme control switches **Light**, **Dark**, and **Custom**. The choice is stored in the `theme` cookie and applied as `data-theme` on `<html>`.
 
-New partials use a `_` prefix and are registered from that layer's `index.scss`.
+| Theme    | Look                                 |
+| -------- | ------------------------------------ |
+| `light`  | Cool background, teal primary        |
+| `dark`   | Dark background, bright teal primary |
+| `custom` | Warm background, orange primary      |
+
+Palettes live in `app/assets/styles/base/_themes.scss` as CSS variables (`--color-background`, `--color-text`, `--color-primary`). `useTheme()` in `app/composables/useTheme.ts` reads and writes the cookie.
 
 ## Internationalization
 
@@ -169,7 +170,7 @@ On every push, GitHub Actions runs:
 yarn dev
 ```
 
-Open http://localhost:3000. The home page is `app/pages/index.vue`, inside `app/layouts/default.vue`. Use the language control in the header. Only English is available.
+Open http://localhost:3000. The home page is `app/pages/index.vue`, inside `app/layouts/default.vue`. The header has a language control (English only) and a theme control (Light, Dark, Custom).
 
 ## Production
 
