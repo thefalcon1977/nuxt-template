@@ -20,7 +20,7 @@ Rules for files under `app/plugins/`. Follow global rules in `global.mdc`.
 | Auth | A session must be restored before routes render |
 | UI library | The project adopts a component framework |
 
-Do not add axios, Pinia, i18n, or a UI kit as empty plugins.
+Do not add axios, Pinia, or a UI kit as empty plugins. Translations use `@nuxtjs/i18n` (see `i18n.mdc`), not a second i18n plugin.
 
 ## Shape
 

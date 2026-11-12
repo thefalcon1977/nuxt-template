@@ -1,0 +1,129 @@
+---
+description: Best practices for multi-language UI with @nuxtjs/i18n
+globs: i18n/**/*,app/**/*.{vue,ts},nuxt.config.ts
+alwaysApply: false
+---
+
+# Internationalization
+
+Rules for user-facing copy and locale switching. Follow global rules in `global.mdc`.
+
+## Current setup
+
+This app uses **`@nuxtjs/i18n`**. English is the only locale. Add a language by copying that pattern. Do not add a second i18n library or a custom plugin.
+
+| Item | Value |
+|------|-------|
+| Module | `@nuxtjs/i18n` in `nuxt.config.ts` |
+| Messages | `i18n/locales/{code}.ts` |
+| Default | `en` |
+| Strategy | `no_prefix` (locale is not in the URL) |
+| Browser detect | Off, until more than one locale exists |
+| Switch | `app/layouts/default.vue` calls `setLocale` |
+
+```ts
+locales: [
+  {
+    code: 'en',
+    language: 'en-US',
+    name: 'English',
+    dir: 'ltr',
+    file: 'en.ts',
+  },
+]
+```
+
+`langDir` is `locales`, resolved under the `i18n/` directory.
+
+## Message files
+
+One TypeScript file per locale. Every file exports the same key tree. English is the source.
+
+```ts
+export default {
+  home: {
+    title: 'Nuxt Template',
+    description: 'Start building from this page.',
+  },
+  language: {
+    label: 'Language',
+  },
+}
+```
+
+- Nest keys by screen or feature: `home.title`, `language.label`.
+- Use camelCase key segments.
+- Keep keys stable. Renaming a key means updating every locale file and every `$t()` call.
+- Write full sentences in the locale file. Do not glue translated fragments together in the template.
+- Leave brand and product names untranslated unless the copy asks for a translation.
+
+## Using translations
+
+In templates, use `$t`:
+
+```vue
+<h1>{{ $t('home.title') }}</h1>
+```
+
+In script, use `useI18n()`:
+
+```ts
+const { t } = useI18n()
+const title = computed(() => t('home.title'))
+```
+
+- Translate every string a person sees: labels, buttons, empty states, validation, and page titles.
+- Pass dynamic values as named params: `$t('items.count', { count })`.
+- Format dates and numbers with the i18n date and number APIs when a locale needs a different format.
+
+## Language switch
+
+The switch reads `locales` from `useI18n()` and changes locale with `setLocale`. Locale names in the control come from the config `name` (`English`), not from a translated message, so the language name stays recognizable.
+
+When you add a locale:
+
+1. Add `i18n/locales/{code}.ts` with the same keys as `en.ts`.
+2. Register `{ code, language, name, dir, file }` in `nuxt.config.ts`.
+3. Set `dir` to `ltr` or `rtl`.
+4. Keep `strategy: 'no_prefix'` unless the product needs the locale in the path.
+5. Turn on `detectBrowserLanguage` only after at least two locales exist.
+
+Set `dir` on the document from the active locale when a right-to-left language is added. Do not hardcode `ltr` in every page.
+
+## Adding a locale
+
+```ts
+{
+  code: 'fa',
+  language: 'fa-IR',
+  name: 'فارسی',
+  dir: 'rtl',
+  file: 'fa.ts',
+}
+```
+
+`language` is the BCP 47 tag (`en-US`, `fa-IR`). `code` is the short id used by `setLocale` and message files.
+
+## Do
+
+- Use `@nuxtjs/i18n` and `i18n/locales/{code}.ts`.
+- Keep one shared key tree. English is the complete source.
+- Use `$t` / `t()` for user-facing copy.
+- Switch locale with `setLocale` from `useI18n()`.
+- Show each locale's own `name` in the language control.
+- Set `dir` on the locale entry (`ltr` or `rtl`).
+- Add the new key to every existing locale file in the same change.
+- Install or upgrade the module with Yarn.
+
+## Don't
+
+- Don't hardcode UI strings in Vue, TS, or SCSS content.
+- Don't add vue-i18n by hand or a second i18n plugin beside `@nuxtjs/i18n`.
+- Don't build sentences by concatenating translated pieces.
+- Don't put the locale code in the URL while `strategy` is `no_prefix`.
+- Don't enable browser language detection while only `en` exists.
+- Don't store the active locale in your own `localStorage` key. Let the module persist it.
+- Don't translate locale names inside message files for the switcher.
+- Don't change a key in only one locale file.
+- Don't use `process.env` to pick the locale.
+- Don't put API paths, DTO field names, or code identifiers through `$t`.

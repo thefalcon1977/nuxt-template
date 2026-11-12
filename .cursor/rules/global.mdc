@@ -21,6 +21,7 @@ Master rules for this repository. Layer-specific details live in other files und
 | App root | `app/` (Nuxt 4 directory structure) |
 | Entry | `app.vue` renders `<NuxtLayout>` and `<NuxtPage>` |
 | Styles | `app/assets/styles/app.scss` (SCSS layers) |
+| i18n | `@nuxtjs/i18n` — locales in `i18n/locales/` (see `i18n.mdc`) |
 | Static files | `public/` (fixed URLs); processed assets in `app/assets/` |
 
 Pinia, axios, and Vue Query are **not** installed. Add a library only when a feature needs that layer.
@@ -157,6 +158,7 @@ export function myFunction(param1: string): ResultType {
 | `plugins.mdc` | `app/plugins/**` |
 | `assets.mdc` | `app/assets/**` |
 | `utils.mdc` | `app/utils/**` |
+| `i18n.mdc` | `i18n/**`, user-facing copy, locale switching |
 
 ## Do / Don't
 
