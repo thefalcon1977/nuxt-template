@@ -40,15 +40,16 @@ Copy the env template and edit local values:
 cp .env.example .env
 ```
 
-| Variable       | Used for                                                                                                            |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `API_BASE_URL` | Public API base URL (`runtimeConfig.public.apiBaseUrl`)                                                             |
-| `THEME`        | Default theme (`light`, `dark`, or `custom`). A `theme` cookie overrides it after the visitor picks one             |
-| `LOCALE`       | Default i18n locale (`en`)                                                                                          |
-| `VERSION`      | App version (`runtimeConfig.public.version`, default `1.0.0`). `GET /json/version` returns `{ "version": "1.0.0" }` |
-| `MODE`         | App mode (`runtimeConfig.public.mode`: `development` or `production`)                                               |
+| Variable              | Used for                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `MODE`                | App mode (`runtimeConfig.public.mode`: `development` or `production`)                                               |
+| `API_BASE_URL`        | Public API base URL (`runtimeConfig.public.apiBaseUrl`)                                                             |
+| `THEME`               | Default theme (`light`, `dark`, or `custom`). A `theme` cookie overrides it after the visitor picks one             |
+| `LOCALE`              | Default i18n locale (`en`)                                                                                          |
+| `ENCRYPT_STORAGE_KEY` | Encryption key for `StorageService` in `services/STORAGE/localStorage.ts`. Not a `runtimeConfig` value              |
+| `VERSION`             | App version (`runtimeConfig.public.version`, default `1.0.0`). `GET /json/version` returns `{ "version": "1.0.0" }` |
 
-Read them with `useRuntimeConfig().public` in app code. Restart `yarn dev` after changing `.env`.
+Read public values with `useRuntimeConfig().public` in app code. `ENCRYPT_STORAGE_KEY` is only for `StorageService`. Restart `yarn dev` after changing `.env`.
 
 ## Scripts
 
@@ -71,6 +72,15 @@ Read them with `useRuntimeConfig().public` in app code. Restart `yarn dev` after
 i18n/
 └── locales/
     └── en.ts                    # English messages
+services/
+├── STORAGE/
+│   ├── localStorage.ts          # StorageService: encrypted local storage
+│   └── cookie.ts                # CookieService: browser cookie helpers
+└── REST_SERVICES/
+    ├── routes/                  # URL constants
+    ├── queries/                 # GET
+    ├── mutations/               # POST / PUT / DELETE
+    └── dto/                     # Request and response types
 app/
 ├── app.vue                      # NuxtLayout + NuxtPage
 ├── app.config.ts                # App-level config
@@ -85,11 +95,7 @@ app/
 ├── middleware/                  # Route guards
 ├── pages/index.vue              # Home page
 ├── plugins/                     # App bootstrap
-├── services/REST_SERVICES/
-│   ├── routes/                  # URL constants
-│   ├── queries/                 # GET
-│   ├── mutations/               # POST / PUT / DELETE
-│   └── dto/                     # Request and response types
+├── services/REST_SERVICES/      # Empty skeleton; use the root services/ tree
 ├── stores/                      # Global state only
 ├── types/
 └── utils/theme.ts               # Theme names and cookie key
@@ -106,11 +112,13 @@ pages / layouts / components
         ↓
    composables
         ↓
-   services (HTTP → REST API)
+   services (HTTP → REST API, encrypted local storage)
 ```
 
 - **Pages** orchestrate UI and call composables.
-- **Services** own paths, HTTP calls, and DTOs.
+- **Services** own paths, HTTP calls, DTOs, and encrypted local storage.
+- **`StorageService`** (`services/STORAGE/localStorage.ts`) keeps one encrypted object in the browser. Call `setItem`, `getItem`, and `removeItem`. Its key is `ENCRYPT_STORAGE_KEY` from `.env.example`.
+- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Theme persistence in `useTheme()` goes through it. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** hold session-wide state only (auth, menus, loading).
 - **Utils** stay pure and stateless.

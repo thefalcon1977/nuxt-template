@@ -31,6 +31,11 @@ Pinia, axios, and Vue Query are **not** installed. Add a library only when a fea
 Each layer has one job. Do not skip layers once they exist (for example, a page calling HTTP directly when a composable exists).
 
 ```
+services/
+├── STORAGE/
+│   ├── localStorage.ts     # StorageService: encrypted local storage
+│   └── cookie.ts           # CookieService: browser cookie helpers
+└── REST_SERVICES/          # routes, queries, mutations, dto
 app/
 ├── app.vue                 # Root shell: NuxtLayout + NuxtPage
 ├── app.config.ts           # App-level config
@@ -41,7 +46,7 @@ app/
 ├── middleware/             # Route guards (empty until needed)
 ├── pages/                  # index.vue starter home
 ├── plugins/                # App bootstrap (empty until needed)
-├── services/REST_SERVICES/ # routes, queries, mutations, dto
+├── services/REST_SERVICES/ # Empty skeleton; use the root services/ tree
 ├── stores/                 # Global state (empty until needed)
 ├── types/                  # Shared TypeScript types
 └── utils/                  # Pure helpers
@@ -68,7 +73,9 @@ plugins / middleware
 ```
 
 - **Pages** orchestrate UI. Fetch through **composables** once those exist.
-- **Services** own URLs, HTTP calls, and DTOs.
+- **Services** own URLs, HTTP calls, DTOs, and browser storage under `services/STORAGE/`.
+- **`StorageService`** (`services/STORAGE/localStorage.ts`) is the encrypted local storage API.
+- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** own session-wide state only (auth, menus, loading).
 - **Utils** are pure and stateless.
@@ -77,16 +84,20 @@ plugins / middleware
 ### Services layout
 
 ```
-app/services/REST_SERVICES/
-├── routes/          # URL constants
-├── queries/         # GET
-├── mutations/       # POST / PUT / DELETE
-└── dto/
-    ├── query/       # Response types
-    └── mutation/    # Request types
+services/
+├── STORAGE/
+│   ├── localStorage.ts  # StorageService (ENCRYPT_STORAGE_KEY)
+│   └── cookie.ts        # CookieService
+└── REST_SERVICES/
+    ├── routes/      # URL constants
+    ├── queries/     # GET
+    ├── mutations/   # POST / PUT / DELETE
+    └── dto/
+        ├── query/       # Response types
+        └── mutation/    # Request types
 ```
 
-Add `interceptors.ts` only when an HTTP client plugin exists.
+`app/services/REST_SERVICES/` is an empty duplicate. Add REST files under the root `services/REST_SERVICES/` tree. Browser storage lives under `services/STORAGE/`. Add `interceptors.ts` only when an HTTP client plugin exists. Do not read or write app data with raw `localStorage`; use `StorageService`.
 
 ### Composables layout
 
@@ -153,8 +164,7 @@ export function myFunction(param1: string): ResultType {
 | `middleware.mdc` | `app/middleware/**` |
 | `components.mdc` | `app/components/**` |
 | `composables.mdc` | `app/composables/**` |
-| `services.mdc` | `app/services/**` |
-| `stores.mdc` | `app/stores/**` |
+| `services.mdc` | `services/**`, `app/services/**` |
 | `plugins.mdc` | `app/plugins/**` |
 | `assets.mdc` | `app/assets/**` |
 | `utils.mdc` | `app/utils/**` |
@@ -168,6 +178,8 @@ export function myFunction(param1: string): ResultType {
 | `useRuntimeConfig().public.*` | `process.env` in pages or components |
 | Composables → services | Pages → HTTP directly |
 | Pinia for auth, menus, loading | Pinia for paginated lists |
+| `StorageService` for browser storage | Raw `localStorage` for app data |
+| `CookieService` for every cookie action | `useCookie`, `document.cookie`, or direct cookie helpers |
 | Extract reused UI to components | Copy the same block across pages |
 | Commit `yarn.lock` | Commit `.env` or `node_modules/` |
 | JSDoc on exports | A second `<script setup>` in one file |
@@ -178,8 +190,7 @@ export function myFunction(param1: string): ResultType {
 
 1. **Route** — `app/pages/` and a parent wrapper when the section has children.
 2. **Layout / middleware** — only if the section needs a shell or a guard.
-3. **Services** — `routes/`, `dto/`, `queries/`, `mutations/` when the feature calls an API.
-4. **Composables** — wrap those services. Install a query library only if caching is required.
+3. **Services** — `services/REST_SERVICES/` (`routes/`, `dto/`, `queries/`, `mutations/`) when the feature calls an API. Use `services/STORAGE/` (`StorageService`, cookie helpers) for browser storage.
 5. **Components** — extract UI that more than one page uses.
 6. **Store** — only for global state. Install Pinia at that point.
 7. **Env** — new keys in `.env.example` and `nuxt.config.ts` `runtimeConfig`.
@@ -190,8 +201,7 @@ export function myFunction(param1: string): ResultType {
 `README.md` is the public map of this starter. Update it in the same change when the flow changes:
 
 - Layer order or the data-flow path (pages, composables, services, stores)
-- The `app/` or `i18n/` tree shown in the README
-- Stack, scripts, i18n locales, or the style-layer entry
+- The `app/`, `services/`, or `i18n/` tree shown in the README
 - How the home page, layout, or language switch behaves
 
 Match the README to the code. Do not document libraries, routes, or locales that are not in the repo.

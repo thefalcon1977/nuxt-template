@@ -10,7 +10,7 @@ Rules for files under `app/composables/`. Follow global rules in `global.mdc`.
 
 ## Current starter
 
-There is no `app/composables/` folder yet. Create it with the first reusable reactive function. Do not add a data-fetching library until a feature needs caching or mutations.
+`app/composables/useTheme.ts` is the first composable. It stores the chosen theme with `CookieService` from `services/STORAGE/cookie.ts`. Do not add a data-fetching library until a feature needs caching or mutations.
 
 ## Purpose
 
@@ -63,11 +63,18 @@ export function useGetItems(page: Ref<number>, pageSize: Ref<number>) {
 - The page owns navigation after success (`router.push`).
 - The composable does not render UI.
 
+## Cookies
+
+- Any cookie read or write in a composable must use `CookieService` from `services/STORAGE/cookie.ts`.
+- Do not call `useCookie` or touch `document.cookie` in composables.
+- For SSR reads: `CookieService.getItem(name, useRequestHeaders(['cookie']).cookie)`.
+
 ## What does not belong here
 
 - Pinia stores (auth, menus, loading).
 - Presentational components.
 - Endpoint path constants (those live in `services/REST_SERVICES/routes/`).
+- Direct cookie or `localStorage` access (use `CookieService` / `StorageService`).
 - One-off state used by a single form. Keep that in the page until it is shared.
 
 ## Adding a composable
