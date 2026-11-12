@@ -1,9 +1,31 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const locale = process.env.LOCALE ?? 'en'
+const theme = process.env.THEME ?? 'light'
+const apiBaseUrl = process.env.API_BASE_URL ?? ''
+const version = process.env.VERSION ?? '1.0.0'
+const mode = process.env.MODE === 'production' ? 'production' : 'development'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['@nuxt/eslint', '@nuxtjs/i18n'],
   css: ['~/assets/styles/app.scss'],
+  typescript: {
+    nodeTsConfig: {
+      compilerOptions: {
+        types: ['node'],
+      },
+    },
+  },
+  runtimeConfig: {
+    public: {
+      apiBaseUrl,
+      theme,
+      locale,
+      version,
+      mode,
+    },
+  },
   i18n: {
     locales: [
       {
@@ -14,7 +36,7 @@ export default defineNuxtConfig({
         file: 'en.ts',
       },
     ],
-    defaultLocale: 'en',
+    defaultLocale: locale as 'en',
     strategy: 'no_prefix',
     langDir: 'locales',
     detectBrowserLanguage: false,

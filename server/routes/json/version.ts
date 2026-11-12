@@ -1,9 +1,12 @@
 /**
- * Answers browser and DevTools probes for `/json/version`.
- * That path is not a page. Handling it here keeps Vue Router from warning.
+ * Returns the app version from `VERSION` in the environment.
+ *
+ * @returns Version payload for `GET /json/version`
  */
-export default defineEventHandler((event) => {
-  setResponseStatus(event, 404)
+export default defineEventHandler(() => {
+  const config = useRuntimeConfig()
 
-  return { status: 404 }
+  return {
+    version: config.public.version,
+  }
 })

@@ -34,6 +34,22 @@ yarn install
 
 `postinstall` runs `nuxt prepare` and generates Nuxt types in `.nuxt/`.
 
+Copy the env template and edit local values:
+
+```bash
+cp .env.example .env
+```
+
+| Variable       | Used for                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `API_BASE_URL` | Public API base URL (`runtimeConfig.public.apiBaseUrl`)                                                             |
+| `THEME`        | Default theme (`light`, `dark`, or `custom`). A `theme` cookie overrides it after the visitor picks one             |
+| `LOCALE`       | Default i18n locale (`en`)                                                                                          |
+| `VERSION`      | App version (`runtimeConfig.public.version`, default `1.0.0`). `GET /json/version` returns `{ "version": "1.0.0" }` |
+| `MODE`         | App mode (`runtimeConfig.public.mode`: `development` or `production`)                                               |
+
+Read them with `useRuntimeConfig().public` in app code. Restart `yarn dev` after changing `.env`.
+
 ## Scripts
 
 | Command             | Description                          |
@@ -118,7 +134,7 @@ New partials use a `_` prefix and are registered from that layer's `index.scss`.
 
 ## Themes
 
-The header theme control switches **Light**, **Dark**, and **Custom**. The choice is stored in the `theme` cookie and applied as `data-theme` on `<html>`.
+The header theme control switches **Light**, **Dark**, and **Custom**. `THEME` in `.env` is the default and is applied as `data-theme` on `<html>`. Choosing a theme in the header stores that choice in the `theme` cookie, which then overrides the default.
 
 | Theme    | Look                                 |
 | -------- | ------------------------------------ |
@@ -126,7 +142,7 @@ The header theme control switches **Light**, **Dark**, and **Custom**. The choic
 | `dark`   | Dark background, bright teal primary |
 | `custom` | Warm background, orange primary      |
 
-Palettes live in `app/assets/styles/base/_themes.scss` as CSS variables (`--color-background`, `--color-text`, `--color-primary`). `useTheme()` in `app/composables/useTheme.ts` reads and writes the cookie.
+Palettes live in `app/assets/styles/base/_themes.scss` as CSS variables (`--color-background`, `--color-text`, `--color-primary`). `useTheme()` in `app/composables/useTheme.ts` uses `THEME` until the visitor chooses a theme.
 
 ## Internationalization
 
