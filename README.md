@@ -119,7 +119,7 @@ pages / layouts / components
 - **Pages** orchestrate UI and call composables.
 - **Services** own paths, HTTP calls, DTOs, and encrypted local storage.
 - **`StorageService`** (`services/STORAGE/localStorage.ts`) keeps one encrypted object in the browser. Call `setItem`, `getItem`, and `removeItem`.
-- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Cookie names are hashed and values are encrypted with `ENCRYPT_STORAGE_KEY`. Theme persistence in `useTheme()` goes through it. Do not use `useCookie` or `document.cookie`.
+- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Cookie names are stored as `@nuxt:{name}` (for example `@nuxt:theme`) and values are encrypted with `ENCRYPT_STORAGE_KEY`. A theme cookie is written only after the visitor picks a theme in the header. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** hold session-wide state only (auth, menus, loading).
 - **Utils** stay pure and stateless.

@@ -12,6 +12,8 @@ export interface CookieOptions {
   sameSite?: 'strict' | 'lax' | 'none'
 }
 
+const COOKIE_PREFIX = '@nuxt'
+
 /**
  * True when `document.cookie` is available.
  *
@@ -22,38 +24,57 @@ function isBrowser(): boolean {
 }
 
 /**
- * Builds the attribute string for `document.cookie`.
+ * Builds encrypt-storage cookie options from CookieService options.
  *
- * @param options - Cookie attributes
- * @returns Serialized attributes
+ * @param options - CookieService attributes
+ * @returns Options accepted by encrypt-storage
  */
-function serializeAttributes(options: CookieOptions = {}): string {
-  const parts: string[] = []
-  const path = options.path ?? '/'
-
-  parts.push(`path=${path}`)
-
-  if (options.domain) {
-    parts.push(`domain=${options.domain}`)
+function toEncryptCookieOptions(options: CookieOptions = {}): {
+  path?: string
+  domain?: string
+  expires?: number | Date
+  secure?: boolean
+  sameSite?: 'strict' | 'lax' | 'none'
+} {
+  const result: {
+    path?: string
+    domain?: string
+    expires?: number | Date
+    secure?: boolean
+    sameSite?: 'strict' | 'lax' | 'none'
+  } = {
+    path: options.path ?? '/',
   }
 
-  if (options.maxAge !== undefined) {
-    parts.push(`max-age=${Math.floor(options.maxAge)}`)
+  if (options.domain) {
+    result.domain = options.domain
   }
 
   if (options.expires) {
-    parts.push(`expires=${options.expires.toUTCString()}`)
+    result.expires = options.expires
+  } else if (options.maxAge !== undefined) {
+    result.expires = options.maxAge
   }
 
   if (options.secure) {
-    parts.push('secure')
+    result.secure = options.secure
   }
 
   if (options.sameSite) {
-    parts.push(`samesite=${options.sameSite}`)
+    result.sameSite = options.sameSite
   }
 
-  return parts.join('; ')
+  return result
+}
+
+/**
+ * Storage key written to `document.cookie` for a logical name.
+ *
+ * @param name - Logical cookie name
+ * @returns Prefixed cookie name
+ */
+function storageCookieName(name: string): string {
+  return `${COOKIE_PREFIX}:${name}`
 }
 
 /**
@@ -100,40 +121,30 @@ function parseCookies(source: string): Record<string, string> {
 }
 
 /**
- * Turns a logical cookie name into the encrypted storage key.
+ * Decrypts a value written by encrypt-storage cookie helpers.
  *
- * @param name - Logical cookie name
- * @returns Hashed cookie name
+ * @param encryptedValue - Encrypted cookie payload
+ * @returns Plain string value, or null when decryption fails
  */
-function encryptCookieName(name: string): string {
-  return getEncryptClient().hash(name)
-}
-
-/**
- * Encrypts a cookie value with `ENCRYPT_STORAGE_KEY`.
- *
- * @param value - Plain cookie value
- * @returns Encrypted cookie value
- */
-function encryptCookieValue(value: string): string {
-  return getEncryptClient().encryptValue(value)
-}
-
-/**
- * Decrypts a cookie value with `ENCRYPT_STORAGE_KEY`.
- *
- * @param value - Encrypted cookie value
- * @returns Plain cookie value, or null when decryption fails
- */
-function decryptCookieValue(value: string): string | null {
+function decryptStoredValue(encryptedValue: string): string | null {
   try {
-    const decrypted = getEncryptClient().decryptValue<unknown>(value)
+    const client = getEncryptClient()
+    const once = client.decryptValue<unknown>(encryptedValue)
 
-    if (decrypted === null || decrypted === undefined) {
+    if (once === null || once === undefined) {
       return null
     }
 
-    return typeof decrypted === 'string' ? decrypted : String(decrypted)
+    if (typeof once === 'string') {
+      try {
+        const twice = JSON.parse(once) as unknown
+        return twice === null || twice === undefined ? null : String(twice)
+      } catch {
+        return once
+      }
+    }
+
+    return String(once)
   } catch {
     return null
   }
@@ -141,7 +152,7 @@ function decryptCookieValue(value: string): string | null {
 
 /**
  * Writes an encrypted cookie in the browser.
- * The cookie name is hashed and the value is encrypted with `ENCRYPT_STORAGE_KEY`.
+ * The name is stored as `@nuxt:{name}` and the value is encrypted with `ENCRYPT_STORAGE_KEY`.
  *
  * @param name - Logical cookie name
  * @param value - Plain cookie value
@@ -152,10 +163,7 @@ function setItem(name: string, value: string, options: CookieOptions = {}): void
     return
   }
 
-  const encodedName = encodeURIComponent(encryptCookieName(name))
-  const encodedValue = encodeURIComponent(encryptCookieValue(value))
-
-  document.cookie = `${encodedName}=${encodedValue}; ${serializeAttributes(options)}`
+  getEncryptClient().cookie.set(name, value, toEncryptCookieOptions(options))
 }
 
 /**
@@ -167,6 +175,16 @@ function setItem(name: string, value: string, options: CookieOptions = {}): void
  * @returns The plain cookie value, or null when missing
  */
 function getItem(name: string, cookieHeader?: string): string | null {
+  if (isBrowser() && cookieHeader === undefined) {
+    const value = getEncryptClient().cookie.get<unknown>(name)
+
+    if (value === null || value === undefined) {
+      return null
+    }
+
+    return String(value)
+  }
+
   const source = resolveCookieSource(cookieHeader)
 
   if (source === null) {
@@ -174,13 +192,13 @@ function getItem(name: string, cookieHeader?: string): string | null {
   }
 
   const cookies = parseCookies(source)
-  const encryptedValue = cookies[encryptCookieName(name)]
+  const encryptedValue = cookies[storageCookieName(name)]
 
   if (encryptedValue === undefined || encryptedValue === '') {
     return null
   }
 
-  return decryptCookieValue(encryptedValue)
+  return decryptStoredValue(encryptedValue)
 }
 
 /**
@@ -195,23 +213,20 @@ function removeItem(name: string, options: Pick<CookieOptions, 'path' | 'domain'
     return null
   }
 
-  const encodedName = encodeURIComponent(encryptCookieName(name))
-
-  document.cookie = `${encodedName}=; ${serializeAttributes({
-    ...options,
-    maxAge: 0,
-    expires: new Date(0),
-  })}`
+  getEncryptClient().cookie.remove(name, {
+    path: options.path ?? '/',
+    domain: options.domain,
+  })
 
   return null
 }
 
 /**
- * Reads every cookie and decrypts values that were written by CookieService.
- * Keys in the result are the hashed cookie names.
+ * Reads every CookieService cookie and decrypts the values.
+ * Keys in the result are logical names without the `@nuxt:` prefix when possible.
  *
  * @param cookieHeader - Optional raw `Cookie` request header for SSR
- * @returns A hashed-name-to-plain-value map
+ * @returns A name-to-value map
  */
 function getAll(cookieHeader?: string): Record<string, string> {
   const source = resolveCookieSource(cookieHeader)
@@ -222,12 +237,17 @@ function getAll(cookieHeader?: string): Record<string, string> {
 
   const cookies = parseCookies(source)
   const result: Record<string, string> = {}
+  const prefix = `${COOKIE_PREFIX}:`
 
-  for (const [hashedName, encryptedValue] of Object.entries(cookies)) {
-    const decrypted = decryptCookieValue(encryptedValue)
+  for (const [storedName, encryptedValue] of Object.entries(cookies)) {
+    if (!storedName.startsWith(prefix)) {
+      continue
+    }
+
+    const decrypted = decryptStoredValue(encryptedValue)
 
     if (decrypted !== null) {
-      result[hashedName] = decrypted
+      result[storedName.slice(prefix.length)] = decrypted
     }
   }
 
@@ -235,29 +255,25 @@ function getAll(cookieHeader?: string): Record<string, string> {
 }
 
 /**
- * Removes every cookie available to this document for the given path and domain.
+ * Removes every `@nuxt:` cookie available to this document for the given path and domain.
  *
  * @param options - Optional path and domain that match the cookies to clear
  */
 function clear(options: Pick<CookieOptions, 'path' | 'domain'> = {}): void {
-  if (!isBrowser() || !document.cookie) {
+  if (!isBrowser()) {
     return
   }
 
-  const cookies = parseCookies(document.cookie)
+  const cookies = getAll()
 
-  for (const hashedName of Object.keys(cookies)) {
-    document.cookie = `${encodeURIComponent(hashedName)}=; ${serializeAttributes({
-      ...options,
-      maxAge: 0,
-      expires: new Date(0),
-    })}`
+  for (const name of Object.keys(cookies)) {
+    removeItem(name, options)
   }
 }
 
 /**
  * Encrypted browser cookie helpers for insert, read, delete, and bulk management.
- * Cookie names are hashed and values are encrypted with `ENCRYPT_STORAGE_KEY`.
+ * Names are stored as `@nuxt:{name}`. Values are encrypted with `ENCRYPT_STORAGE_KEY`.
  * App code must use this service for every cookie read or write.
  */
 export const CookieService = {

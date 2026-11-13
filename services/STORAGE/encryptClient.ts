@@ -25,6 +25,7 @@ export function getEncryptClient(): EncryptStorageNoble {
 
   encryptClient = EncryptStorage.create(key, {
     engine: 'noble',
+    // Cookie names become `@nuxt:{name}` so they are easy to find in DevTools.
     prefix: '@nuxt',
   })
   encryptClientKey = key

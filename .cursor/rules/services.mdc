@@ -17,7 +17,7 @@ services/
 ├── STORAGE/
 │   ├── encryptClient.ts # Shared encrypt-storage client (ENCRYPT_STORAGE_KEY)
 │   ├── localStorage.ts  # StorageService
-│   └── cookie.ts        # CookieService: hashed names + encrypted values
+│   └── cookie.ts        # CookieService: `@nuxt:{name}` + encrypted values
 └── REST_SERVICES/
     ├── routes/
     ├── queries/
@@ -51,7 +51,7 @@ Add `interceptors.ts` beside the REST folders only after an HTTP plugin exists.
 - The encryption key is `ENCRYPT_STORAGE_KEY` → `runtimeConfig.public.encryptStorageKey` (min 10 characters).
 - Read it only through `getEncryptClient()` / `useRuntimeConfig()`, never hardcode it in services.
 - **Every cookie read or write must go through `CookieService`** in `services/STORAGE/cookie.ts`.
-- CookieService hashes cookie names and encrypts cookie values with that key.
+- CookieService stores names as `@nuxt:{name}` and encrypts cookie values with that key.
 - Allowed API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`.
 - Do **not** use `useCookie`, `document.cookie`, `cookie-es`, or `h3` `getCookie` / `setCookie` / `deleteCookie` in app code.
 - On the server, pass the request `Cookie` header into `getItem` / `getAll` for SSR reads: `CookieService.getItem(name, useRequestHeaders(['cookie']).cookie)`.
