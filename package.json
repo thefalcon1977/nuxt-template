@@ -14,7 +14,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "commit": "cz",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "gen": "node ./scripts/add.mjs",
+    "add:pages": "node ./scripts/add.mjs pages"
   },
   "dependencies": {
     "@nuxtjs/i18n": "^10.6.0",

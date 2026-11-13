@@ -53,18 +53,20 @@ Read public values with `useRuntimeConfig().public` in app code. Restart `yarn d
 
 ## Scripts
 
-| Command             | Description                          |
-| ------------------- | ------------------------------------ |
-| `yarn dev`          | Dev server at http://localhost:3000  |
-| `yarn build`        | Production build                     |
-| `yarn generate`     | Static site generation               |
-| `yarn preview`      | Preview the production build locally |
-| `yarn lint`         | Run ESLint                           |
-| `yarn lint:fix`     | Run ESLint with auto-fix             |
-| `yarn format`       | Format with Prettier                 |
-| `yarn format:check` | Check formatting without writing     |
-| `yarn typecheck`    | Run Vue and Nuxt type checking       |
-| `yarn commit`       | Commit with Commitizen               |
+| Command                 | Description                          |
+| ----------------------- | ------------------------------------ |
+| `yarn dev`              | Dev server at http://localhost:3000  |
+| `yarn build`            | Production build                     |
+| `yarn generate`         | Static site generation               |
+| `yarn preview`          | Preview the production build locally |
+| `yarn lint`             | Run ESLint                           |
+| `yarn lint:fix`         | Run ESLint with auto-fix             |
+| `yarn format`           | Format with Prettier                 |
+| `yarn format:check`     | Check formatting without writing     |
+| `yarn typecheck`        | Run Vue and Nuxt type checking       |
+| `yarn commit`           | Commit with Commitizen               |
+| `yarn add:pages <name>` | Scaffold `app/pages/<name>.vue`      |
+| `yarn gen pages <name>` | Same page scaffold via the generator |
 
 ## Project structure
 
@@ -196,6 +198,20 @@ yarn dev
 ```
 
 Open http://localhost:3000. The home page is `app/pages/index.vue`, inside `app/layouts/default.vue`. The header has a language control (English only) and a theme control (Light, Dark, Custom).
+
+### Scaffold a page
+
+`yarn add` installs packages. To create a page file, use:
+
+```bash
+yarn add:pages test
+# app/pages/test.vue → http://localhost:3000/test
+
+yarn add:pages blog/post
+# app/pages/blog/post.vue → http://localhost:3000/blog/post
+```
+
+Or the shared generator: `yarn gen pages test`.
 
 ## Production
 

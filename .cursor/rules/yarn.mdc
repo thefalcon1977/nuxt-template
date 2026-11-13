@@ -51,8 +51,27 @@ If `yarn` is still missing in a new terminal, run `corepack enable` again or res
 | `yarn format:check` | Check formatting without writing |
 | `yarn typecheck` | Run `nuxt typecheck` |
 | `yarn commit` | Commitizen conventional commit |
+| `yarn add:pages <name>` | Scaffold `app/pages/<name>.vue` |
+| `yarn gen pages <name>` | Same scaffold via the shared generator CLI |
 
 Always run scripts via **`yarn <script>`**, not `npm run`.
+
+## Scaffolding pages
+
+`yarn add` is reserved by Yarn for packages. To create a page file, use:
+
+```bash
+yarn add:pages test
+# → app/pages/test.vue  (route /test)
+
+yarn add:pages blog/post
+# → app/pages/blog/post.vue  (route /blog/post)
+
+yarn gen pages settings
+# → app/pages/settings.vue
+```
+
+Do not run `yarn add pages test` — that installs npm packages named `pages` and `test`.
 
 ## Adding & Removing Dependencies
 
