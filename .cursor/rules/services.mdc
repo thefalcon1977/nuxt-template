@@ -1,56 +1,58 @@
 ---
 description: Rules and conventions for API and client services
-globs: services/**/*,app/services/**/*
+globs: services/**/*
 alwaysApply: false
 ---
 
 # Services
 
-Rules for files under `services/` and `app/services/`. Follow global rules in `global.mdc`.
+Rules for files under `services/`. Follow global rules in `global.mdc`.
 
 ## Current starter
 
-Root `services/` is the real services layer. `app/services/REST_SERVICES/` is an empty duplicate skeleton.
+Root `services/` is the services layer. Folder names are **snake_case**.
 
 ```
 services/
-├── STORAGE/
+├── storage/
 │   ├── encryptClient.ts # Shared encrypt-storage client (ENCRYPT_STORAGE_KEY)
 │   ├── localStorage.ts  # StorageService
 │   └── cookie.ts        # CookieService: `@nuxt:{name}` + encrypted values
-└── REST_SERVICES/
-    ├── routes/
-    ├── queries/
-    ├── mutations/
-    └── dto/
-        ├── query/
-        └── mutation/
+├── rest_api/
+│   ├── routes/
+│   ├── queries/
+│   ├── mutations/
+│   └── dto/
+│       ├── query/
+│       └── mutation/
+└── web_socket/          # Empty until a realtime feature is added
 ```
 
-Add REST files under `services/REST_SERVICES/` when a feature calls an API. Put browser storage under `services/STORAGE/`. Do not add sample auth, store, or warehouse modules in advance.
+Add REST files under `services/rest_api/` when a feature calls an API. Put browser storage under `services/storage/`. Put realtime clients under `services/web_socket/`. Do not add sample auth, store, or warehouse modules in advance.
 
 ## Responsibilities
 
 | Path | Holds |
 |------|--------|
-| `STORAGE/encryptClient.ts` | Shared `encrypt-storage` client from `ENCRYPT_STORAGE_KEY` |
-| `STORAGE/localStorage.ts` | Encrypted browser storage (`StorageService`) |
-| `STORAGE/cookie.ts` | Encrypted browser cookies (`CookieService`) |
-| `REST_SERVICES/routes/` | Path constants only |
-| `REST_SERVICES/queries/` | GET functions |
-| `REST_SERVICES/mutations/` | POST, PUT, PATCH, DELETE functions |
-| `REST_SERVICES/dto/query/` | Response interfaces |
-| `REST_SERVICES/dto/mutation/` | Request interfaces |
+| `storage/encryptClient.ts` | Shared `encrypt-storage` client from `ENCRYPT_STORAGE_KEY` |
+| `storage/localStorage.ts` | Encrypted browser storage (`StorageService`) |
+| `storage/cookie.ts` | Encrypted browser cookies (`CookieService`) |
+| `rest_api/routes/` | Path constants only |
+| `rest_api/queries/` | GET functions |
+| `rest_api/mutations/` | POST, PUT, PATCH, DELETE functions |
+| `rest_api/dto/query/` | Response interfaces |
+| `rest_api/dto/mutation/` | Request interfaces |
+| `web_socket/` | WebSocket clients and helpers |
 
 Add `interceptors.ts` beside the REST folders only after an HTTP plugin exists.
 
 ## Storage
 
-- Use `StorageService` from `services/STORAGE/localStorage.ts` for app data in the browser.
+- Use `StorageService` from `services/storage/localStorage.ts` for app data in the browser.
 - Do not call raw `localStorage` for app data.
 - The encryption key is `ENCRYPT_STORAGE_KEY` → `runtimeConfig.public.encryptStorageKey` (min 10 characters).
 - Read it only through `getEncryptClient()` / `useRuntimeConfig()`, never hardcode it in services.
-- **Every cookie read or write must go through `CookieService`** in `services/STORAGE/cookie.ts`.
+- **Every cookie read or write must go through `CookieService`** in `services/storage/cookie.ts`.
 - CookieService stores names as `@nuxt:{name}` and encrypts cookie values with that key.
 - Allowed API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`.
 - Do **not** use `useCookie`, `document.cookie`, `cookie-es`, or `h3` `getCookie` / `setCookie` / `deleteCookie` in app code.
@@ -58,7 +60,7 @@ Add `interceptors.ts` beside the REST folders only after an HTTP plugin exists.
 - `setItem`, `removeItem`, and `clear` run in the browser only. Call them from client actions.
 
 ```ts
-import { CookieService } from '../../services/STORAGE/cookie'
+import { CookieService } from '../../services/storage/cookie'
 
 CookieService.setItem('theme', 'dark', { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
 CookieService.getItem('theme')
@@ -83,8 +85,8 @@ export const itemQueryRoutes = {
 ## Queries and mutations
 
 ```ts
-import type { GetItemsResponse } from '~/services/REST_SERVICES/dto/query/items'
-import { itemQueryRoutes } from '~/services/REST_SERVICES/routes/items'
+import type { GetItemsResponse } from '../../services/rest_api/dto/query/items'
+import { itemQueryRoutes } from '../../services/rest_api/routes/items'
 
 /**
  * Fetches a paginated item list.
@@ -131,7 +133,7 @@ export interface GetItemsResponse {
 
 ## Interceptors
 
-When the HTTP plugin exists, keep hooks in `REST_SERVICES/interceptors.ts`:
+When the HTTP plugin exists, keep hooks in `rest_api/interceptors.ts`:
 
 - Attach auth headers on the request.
 - Handle 401 with a single refresh retry.

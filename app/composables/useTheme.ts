@@ -1,6 +1,6 @@
 import { DEFAULT_THEME, isThemeName, THEME_COOKIE, THEME_NAMES } from '~/utils/theme'
 import type { ThemeName } from '~/utils/theme'
-import { CookieService } from '../../services/STORAGE/cookie'
+import { CookieService } from '../../services/storage/cookie'
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
 

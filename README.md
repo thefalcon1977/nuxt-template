@@ -75,15 +75,16 @@ i18n/
 └── locales/
     └── en.ts                    # English messages
 services/
-├── STORAGE/
+├── storage/
 │   ├── encryptClient.ts         # Shared encrypt-storage client from ENCRYPT_STORAGE_KEY
 │   ├── localStorage.ts          # StorageService: encrypted local storage
-│   └── cookie.ts                # CookieService: hashed names + encrypted values
-└── REST_SERVICES/
-    ├── routes/                  # URL constants
-    ├── queries/                 # GET
-    ├── mutations/               # POST / PUT / DELETE
-    └── dto/                     # Request and response types
+│   └── cookie.ts                # CookieService: `@nuxt:{name}` + encrypted values
+├── rest_api/
+│   ├── routes/                  # URL constants
+│   ├── queries/                 # GET
+│   ├── mutations/               # POST / PUT / DELETE
+│   └── dto/                     # Request and response types
+└── web_socket/                  # Realtime clients (empty until needed)
 app/
 ├── app.vue                      # NuxtLayout + NuxtPage
 ├── app.config.ts                # App-level config
@@ -98,7 +99,6 @@ app/
 ├── middleware/                  # Route guards
 ├── pages/index.vue              # Home page
 ├── plugins/                     # App bootstrap
-├── services/REST_SERVICES/      # Empty skeleton; use the root services/ tree
 ├── stores/                      # Global state only
 ├── types/
 └── utils/theme.ts               # Theme names and cookie key
@@ -120,8 +120,8 @@ pages / layouts / components
 
 - **Pages** orchestrate UI and call composables.
 - **Services** own paths, HTTP calls, DTOs, and encrypted local storage.
-- **`StorageService`** (`services/STORAGE/localStorage.ts`) keeps one encrypted object in the browser. Call `setItem`, `getItem`, and `removeItem`.
-- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Cookie names are stored as `@nuxt:{name}` (for example `@nuxt:theme`) and values are encrypted with `ENCRYPT_STORAGE_KEY`. A theme cookie is written only after the visitor picks a theme in the header. Do not use `useCookie` or `document.cookie`.
+- **`StorageService`** (`services/storage/localStorage.ts`) keeps one encrypted object in the browser. Call `setItem`, `getItem`, and `removeItem`.
+- **`CookieService`** (`services/storage/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, and `clear`. Cookie names are stored as `@nuxt:{name}` (for example `@nuxt:theme`) and values are encrypted with `ENCRYPT_STORAGE_KEY`. A theme cookie is written only after the visitor picks a theme in the header. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** hold session-wide state only (auth, menus, loading).
 - **Utils** stay pure and stateless.

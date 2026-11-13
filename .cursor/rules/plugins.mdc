@@ -36,7 +36,7 @@ export default defineNuxtPlugin(() => {
 
 - Read public config with `useRuntimeConfig()`, not `process.env`.
 - Set the API base URL in the HTTP plugin. Services use relative paths.
-- Put interceptor logic in `app/services/REST_SERVICES/interceptors.ts` and only wire it from the plugin.
+- Put interceptor logic in `services/rest_api/interceptors.ts` and only wire it from the plugin.
 - Use `async` only when startup must wait (session restore).
 
 ## Order

@@ -32,11 +32,9 @@ Each layer has one job. Do not skip layers once they exist (for example, a page 
 
 ```
 services/
-├── STORAGE/
-│   ├── encryptClient.ts    # Shared encrypt-storage client (ENCRYPT_STORAGE_KEY)
-│   ├── localStorage.ts     # StorageService: encrypted local storage
-│   └── cookie.ts           # CookieService: `@nuxt:{name}` + encrypted values
-└── REST_SERVICES/          # routes, queries, mutations, dto
+├── storage/                # StorageService, CookieService, encrypt client
+├── rest_api/               # routes, queries, mutations, dto
+└── web_socket/             # Realtime clients (empty until needed)
 app/
 ├── app.vue                 # Root shell: NuxtLayout + NuxtPage
 ├── app.config.ts           # App-level config
@@ -47,7 +45,6 @@ app/
 ├── middleware/             # Route guards (empty until needed)
 ├── pages/                  # index.vue starter home
 ├── plugins/                # App bootstrap (empty until needed)
-├── services/REST_SERVICES/ # Empty skeleton; use the root services/ tree
 ├── stores/                 # Global state (empty until needed)
 ├── types/                  # Shared TypeScript types
 └── utils/                  # Pure helpers
@@ -74,9 +71,9 @@ plugins / middleware
 ```
 
 - **Pages** orchestrate UI. Fetch through **composables** once those exist.
-- **Services** own URLs, HTTP calls, DTOs, and browser storage under `services/STORAGE/`.
-- **`StorageService`** (`services/STORAGE/localStorage.ts`) is the encrypted local storage API.
-- **`CookieService`** (`services/STORAGE/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`. Names are stored as `@nuxt:{name}`; values are encrypted with `ENCRYPT_STORAGE_KEY`. Do not use `useCookie` or `document.cookie`.
+- **Services** own URLs, HTTP calls, DTOs, browser storage under `services/storage/`, and realtime under `services/web_socket/`.
+- **`StorageService`** (`services/storage/localStorage.ts`) is the encrypted local storage API.
+- **`CookieService`** (`services/storage/cookie.ts`) is the only cookie API: `setItem`, `getItem`, `removeItem`, `getAll`, `clear`. Names are stored as `@nuxt:{name}`; values are encrypted with `ENCRYPT_STORAGE_KEY`. Do not use `useCookie` or `document.cookie`.
 - **Composables** own caching and mutations.
 - **Stores** own session-wide state only (auth, menus, loading).
 - **Utils** are pure and stateless.
@@ -86,20 +83,21 @@ plugins / middleware
 
 ```
 services/
-├── STORAGE/
+├── storage/
 │   ├── encryptClient.ts # ENCRYPT_STORAGE_KEY client
 │   ├── localStorage.ts  # StorageService
 │   └── cookie.ts        # CookieService (`@nuxt:{name}` + encrypted values)
-└── REST_SERVICES/
-    ├── routes/      # URL constants
-    ├── queries/     # GET
-    ├── mutations/   # POST / PUT / DELETE
-    └── dto/
-        ├── query/       # Response types
-        └── mutation/    # Request types
+├── rest_api/
+│   ├── routes/      # URL constants
+│   ├── queries/     # GET
+│   ├── mutations/   # POST / PUT / DELETE
+│   └── dto/
+│       ├── query/       # Response types
+│       └── mutation/    # Request types
+└── web_socket/          # Realtime clients
 ```
 
-`app/services/REST_SERVICES/` is an empty duplicate. Add REST files under the root `services/REST_SERVICES/` tree. Browser storage lives under `services/STORAGE/`. Add `interceptors.ts` only when an HTTP client plugin exists. Do not read or write app data with raw `localStorage`; use `StorageService`.
+Service folders use **snake_case** (`storage`, `rest_api`, `web_socket`). Add REST files under `services/rest_api/`. Browser storage lives under `services/storage/`. Add `interceptors.ts` only when an HTTP client plugin exists. Do not read or write app data with raw `localStorage`; use `StorageService`.
 
 ### Composables layout
 
@@ -118,7 +116,7 @@ app/composables/
 ### TypeScript
 
 - **Always use TypeScript** — type parameters, return types, and non-trivial variables.
-- Avoid `any`. Use DTOs from `services/REST_SERVICES/dto/` or explicit interfaces.
+- Avoid `any`. Use DTOs from `services/rest_api/dto/` or explicit interfaces.
 - Prefer `?.`, `??`, `satisfies`, `as const`, and type-only imports.
 - Fix type errors; do not weaken types to silence them.
 - Rely on Nuxt generated types in `.nuxt/` after `yarn install`.
@@ -166,7 +164,7 @@ export function myFunction(param1: string): ResultType {
 | `middleware.mdc` | `app/middleware/**` |
 | `components.mdc` | `app/components/**` |
 | `composables.mdc` | `app/composables/**` |
-| `services.mdc` | `services/**`, `app/services/**` |
+| `services.mdc` | `services/**` |
 | `plugins.mdc` | `app/plugins/**` |
 | `assets.mdc` | `app/assets/**` |
 | `utils.mdc` | `app/utils/**` |
@@ -192,7 +190,7 @@ export function myFunction(param1: string): ResultType {
 
 1. **Route** — `app/pages/` and a parent wrapper when the section has children.
 2. **Layout / middleware** — only if the section needs a shell or a guard.
-3. **Services** — `services/REST_SERVICES/` (`routes/`, `dto/`, `queries/`, `mutations/`) when the feature calls an API. Use `services/STORAGE/` (`StorageService`, cookie helpers) for browser storage.
+3. **Services** — `services/rest_api/` (`routes/`, `dto/`, `queries/`, `mutations/`) when the feature calls an API. Use `services/storage/` (`StorageService`, cookie helpers) for browser storage. Use `services/web_socket/` for realtime.
 5. **Components** — extract UI that more than one page uses.
 6. **Store** — only for global state. Install Pinia at that point.
 7. **Env** — new keys in `.env.example` and `nuxt.config.ts` `runtimeConfig`.
